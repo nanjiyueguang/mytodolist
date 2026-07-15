@@ -178,6 +178,9 @@ function renderTaskTable() {
         const hasChildren = task.children && task.children.length > 0;
         const indent = task.level * 20;
         
+        // 优先级图标
+        const priorityIcon = task.priority === '高' ? '🔴' : task.priority === '中' ? '🟡' : '🔵';
+        
         html += `
             <div class="task-row level-${task.level}" onclick="showDetail(${task.id})">
                 <div class="col-task-code">${task.taskCode}</div>
@@ -185,6 +188,7 @@ function renderTaskTable() {
                     ${hasChildren ? '<span class="task-toggle">▼</span>' : ''}
                     ${escapeHtml(task.title)}
                 </div>
+                <div class="col-priority">${priorityIcon} ${task.priority}</div>
                 <div class="col-date">${task.start_date || '-'}</div>
                 <div class="col-date">${task.end_date || '-'}</div>
                 <div class="col-duration">${task.duration || 0}</div>
@@ -220,14 +224,14 @@ function renderGanttBars(startDate, endDate) {
         const left = offsetDays * ganttConfig.dayWidth;
         const width = duration * ganttConfig.dayWidth;
         
-        // 确定进度条颜色
-        let barClass = 'pending';
-        if (task.status === '已完成') barClass = 'completed';
-        else if (task.status === '进行中') barClass = 'in-progress';
+        // 根据优先级确定进度条颜色
+        let priorityClass = 'priority-medium';
+        if (task.priority === '高') priorityClass = 'priority-high';
+        else if (task.priority === '低') priorityClass = 'priority-low';
         
         html += `
             <div class="gantt-bar-row level-${task.level}">
-                <div class="gantt-bar ${barClass}" 
+                <div class="gantt-bar ${priorityClass}" 
                      style="left: ${left}px; width: ${width}px;"
                      onclick="showDetail(${task.id})">
                     <div class="gantt-bar-progress" style="width: ${task.progress || 0}%"></div>

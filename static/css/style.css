@@ -115,6 +115,58 @@ header h1 {
     margin-bottom: 20px;
 }
 
+/* 单行表单 */
+.todo-form-inline {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    background: #f8f9fa;
+    padding: 12px 15px;
+    border-radius: 6px;
+    margin-bottom: 20px;
+    flex-wrap: nowrap;
+}
+
+.form-control-inline {
+    padding: 8px 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 13px;
+    transition: border-color 0.3s;
+    height: 36px;
+}
+
+.form-control-inline:focus {
+    outline: none;
+    border-color: #4CAF50;
+}
+
+.form-title {
+    flex: 2;
+    min-width: 150px;
+}
+
+.form-priority {
+    width: 100px;
+    min-width: 100px;
+}
+
+.form-date {
+    width: 130px;
+    min-width: 130px;
+}
+
+.form-desc {
+    flex: 1;
+    min-width: 120px;
+}
+
+.btn-create {
+    height: 36px;
+    white-space: nowrap;
+    padding: 8px 16px;
+}
+
 .form-row {
     display: flex;
     gap: 15px;
@@ -226,6 +278,12 @@ input[type="range"].form-control {
 .col-task-name {
     flex: 1;
     min-width: 200px;
+}
+
+.col-priority {
+    width: 80px;
+    min-width: 80px;
+    text-align: center;
 }
 
 .col-date {
@@ -560,6 +618,46 @@ input[type="range"].form-control {
     display: flex;
     gap: 10px;
     margin-top: 10px;
+}
+
+/* 优先级样式 */
+.priority-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.priority-badge.priority-high {
+    background: #ffebee;
+    color: #c62828;
+    border: 1px solid #ef9a9a;
+}
+
+.priority-badge.priority-medium {
+    background: #fff3e0;
+    color: #ef6c00;
+    border: 1px solid #ffcc80;
+}
+
+.priority-badge.priority-low {
+    background: #e0f7fa;
+    color: #00838f;
+    border: 1px solid #80deea;
+}
+
+/* 甘特图进度条优先级颜色 */
+.gantt-bar.priority-high {
+    background: linear-gradient(90deg, #e53935, #c62828);
+}
+
+.gantt-bar.priority-medium {
+    background: linear-gradient(90deg, #fb8c00, #ef6c00);
+}
+
+.gantt-bar.priority-low {
+    background: linear-gradient(90deg, #00acc1, #00838f);
 }
 
 /* 历史记录 */
