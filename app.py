@@ -66,7 +66,7 @@ def update_todo(todo_id):
     todo.title = data.get('title', todo.title)
     todo.description = data.get('description', todo.description)
     todo.priority = data.get('priority', todo.priority)
-    todo.progress = data.get('progress', todo.progress)
+    # 移除手动设置进度，进度由步骤自动计算
     
     if data.get('start_date'):
         todo.start_date = datetime.strptime(data['start_date'], '%Y-%m-%d').date()
@@ -100,6 +100,8 @@ def update_status(todo_id):
     # 完成时自动设置进度100%
     if new_status == '已完成':
         todo.progress = 100
+    elif new_status == '已取消':
+        todo.progress = 0
     
     history = StatusHistory(todo_id=todo.id, old_status=old_status, new_status=new_status, remark=remark)
     db.session.add(history)

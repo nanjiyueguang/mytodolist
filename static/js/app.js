@@ -50,10 +50,6 @@ function bindEvents() {
         if (e.key === 'Enter') addChild();
     });
     
-    document.getElementById('detail-edit-progress').addEventListener('input', (e) => {
-        document.getElementById('detail-progress-value').textContent = e.target.value;
-    });
-    
     // 拖拽分隔条
     initResizer();
 }
@@ -290,8 +286,11 @@ async function showDetail(todoId) {
         document.getElementById('detail-edit-status').value = todo.status;
         document.getElementById('detail-edit-start').value = todo.start_date || '';
         document.getElementById('detail-edit-end').value = todo.end_date || '';
-        document.getElementById('detail-edit-progress').value = todo.progress || 0;
-        document.getElementById('detail-progress-value').textContent = todo.progress || 0;
+        
+        // 显示自动计算的进度
+        const progress = todo.progress || 0;
+        document.getElementById('detail-progress-value').textContent = progress;
+        document.getElementById('detail-progress-fill').style.width = progress + '%';
         
         renderSteps(todo.steps || []);
         renderChildren(todo.children || []);
@@ -419,7 +418,7 @@ async function saveDetail() {
     const status = document.getElementById('detail-edit-status').value;
     const startDate = document.getElementById('detail-edit-start').value;
     const endDate = document.getElementById('detail-edit-end').value;
-    const progress = parseInt(document.getElementById('detail-edit-progress').value);
+    // 进度由系统自动计算，不再手动设置
     
     if (!title) { alert('标题不能为空'); return; }
     
@@ -427,7 +426,7 @@ async function saveDetail() {
         await fetch(`/api/todos/${currentDetailTodoId}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ title, description, priority, start_date: startDate, end_date: endDate, progress })
+            body: JSON.stringify({ title, description, priority, start_date: startDate, end_date: endDate })
         });
         
         const todoResponse = await fetch(`/api/todos/${currentDetailTodoId}`);
