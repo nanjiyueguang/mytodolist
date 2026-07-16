@@ -196,7 +196,7 @@ def download_template():
     ws.title = "导入模板"
     
     # 表头
-    headers = ['任务编号*', '标题*', '描述', '优先级', '状态', '进度(%)', '开始日期', '结束日期', '父任务编号']
+    headers = ['任务编号*', '标题*', '描述', '优先级', '状态', '开始日期', '结束日期', '父任务编号']
     header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
     header_font = Font(bold=True, color="FFFFFF")
     
@@ -208,10 +208,10 @@ def download_template():
     
     # 示例数据
     sample_data = [
-        ['1', '完成项目报告', '撰写Q3季度报告', '高', '进行中', 50, '2026-07-16', '2026-07-20', ''],
-        ['1.1', '撰写引言', '项目背景介绍', '中', '已完成', 100, '2026-07-16', '2026-07-17', '1'],
-        ['1.2', '数据分析', 'Q3数据整理', '中', '进行中', 50, '2026-07-17', '2026-07-19', '1'],
-        ['2', '准备会议材料', '准备周一例会PPT', '中', '待开始', 0, '2026-07-17', '2026-07-18', ''],
+        ['1', '完成项目报告', '撰写Q3季度报告', '高', '进行中', '2026-07-16', '2026-07-20', ''],
+        ['1.1', '撰写引言', '项目背景介绍', '中', '已完成', '2026-07-16', '2026-07-17', '1'],
+        ['1.2', '数据分析', 'Q3数据整理', '中', '进行中', '2026-07-17', '2026-07-19', '1'],
+        ['2', '准备会议材料', '准备周一例会PPT', '中', '待开始', '2026-07-17', '2026-07-18', ''],
     ]
     
     for row, data in enumerate(sample_data, 2):
@@ -219,7 +219,7 @@ def download_template():
             ws.cell(row=row, column=col, value=value)
     
     # 设置列宽
-    for col_letter, width in [('A', 12), ('B', 25), ('C', 30), ('D', 10), ('E', 12), ('F', 10), ('G', 12), ('H', 12), ('I', 14)]:
+    for col_letter, width in [('A', 12), ('B', 25), ('C', 30), ('D', 10), ('E', 12), ('F', 12), ('G', 12), ('H', 14)]:
         ws.column_dimensions[col_letter].width = width
     
     # 添加说明工作表
@@ -231,10 +231,10 @@ def download_template():
         ['描述', '否', '任务描述'],
         ['优先级', '否', '高/中/低，默认为"中"'],
         ['状态', '否', '待开始/进行中/暂挂/已完成/已取消，默认为"待开始"'],
-        ['进度(%)', '否', '0-100，默认为0'],
         ['开始日期', '否', '格式：YYYY-MM-DD'],
         ['结束日期', '否', '格式：YYYY-MM-DD'],
         ['父任务编号', '否', '填写父任务的编号，如：1'],
+        ['', '', '进度由系统根据步骤自动计算，无需填写'],
     ]
     
     for row, data in enumerate(help_data, 1):
@@ -291,7 +291,6 @@ def import_todos():
             '描述': 'description',
             '优先级': 'priority',
             '状态': 'status',
-            '进度(%)': 'progress',
             '开始日期': 'start_date',
             '结束日期': 'end_date',
             '父任务编号': 'parent_task_no'
@@ -368,14 +367,6 @@ def import_todos():
             elif not data.get('status'):
                 data['status'] = '待开始'
             
-            # 处理进度
-            try:
-                data['progress'] = int(data.get('progress', 0) or 0)
-                if data['progress'] < 0 or data['progress'] > 100:
-                    data['progress'] = 0
-            except (ValueError, TypeError):
-                data['progress'] = 0
-            
             # 处理父任务
             parent_id = None
             parent_task_no = data.get('parent_task_no')
@@ -404,7 +395,6 @@ def import_todos():
                     description=str(data.get('description', '') or ''),
                     priority=data['priority'],
                     status=data['status'],
-                    progress=data['progress'],
                     start_date=data.get('start_date'),
                     end_date=data.get('end_date'),
                     parent_id=parent_id
