@@ -31,6 +31,14 @@ class Todo(db.Model):
                            order_by='TodoStep.order.asc()')
     
     def to_dict(self, include_children=True):
+        # 计算是否逾期
+        today = datetime.utcnow().date()
+        is_overdue = (
+            self.end_date is not None
+            and self.end_date < today
+            and self.status not in ('已完成', '已取消')
+        )
+        
         data = {
             'id': self.id,
             'parent_id': self.parent_id,
@@ -41,6 +49,7 @@ class Todo(db.Model):
             'progress': self.progress,
             'start_date': self.start_date.strftime('%Y-%m-%d') if self.start_date else None,
             'end_date': self.end_date.strftime('%Y-%m-%d') if self.end_date else None,
+            'is_overdue': is_overdue,
             'created_at': self.created_at.strftime('%Y-%m-%d %H:%M:%S'),
             'updated_at': self.updated_at.strftime('%Y-%m-%d %H:%M:%S'),
             'steps': [s.to_dict() for s in self.steps.all()],

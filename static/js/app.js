@@ -183,12 +183,16 @@ function renderTaskTable() {
         // 优先级图标
         const priorityIcon = task.priority === '高' ? '🔴' : task.priority === '中' ? '🟡' : '🔵';
         
+        // 逾期标记
+        const overdueMark = task.is_overdue ? '<span class="overdue-badge">逾期</span>' : '';
+        
         html += `
-            <div class="task-row level-${task.level}" onclick="showDetail(${task.id})">
+            <div class="task-row level-${task.level} ${task.is_overdue ? 'overdue-task' : ''}" onclick="showDetail(${task.id})">
                 <div class="col-task-code">${task.taskCode}</div>
                 <div class="col-task-name task-name-cell level-${task.level}" style="padding-left: ${8 + indent}px">
                     ${hasChildren ? '<span class="task-toggle">▼</span>' : ''}
                     ${escapeHtml(task.title)}
+                    ${overdueMark}
                 </div>
                 <div class="col-priority">${priorityIcon} ${task.priority}</div>
                 <div class="col-date">${task.start_date || '-'}</div>
