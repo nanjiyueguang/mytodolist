@@ -2,7 +2,13 @@
 let currentDetailTodoId = null;
 let allTasks = []; // 扁平化后的任务列表
 let ganttConfig = {
+<<<<<<< HEAD
     dayWidth: 30
+=======
+    dayWidth: 30,
+    startDate: null,
+    endDate: null
+>>>>>>> 4cba1af28bc053658aaa6cb862ce14a84b8459c0
 };
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -18,6 +24,7 @@ document.addEventListener('DOMContentLoaded', () => {
 function bindEvents() {
     document.getElementById('btn-create').addEventListener('click', createTodo);
     
+<<<<<<< HEAD
     document.getElementById('btn-import').addEventListener('click', () => {
         document.getElementById('import-panel').style.display = 'block';
         document.getElementById('import-result').innerHTML = '';
@@ -28,6 +35,8 @@ function bindEvents() {
     });
     document.getElementById('import-file').addEventListener('change', importTodos);
     
+=======
+>>>>>>> 4cba1af28bc053658aaa6cb862ce14a84b8459c0
     document.getElementById('btn-export').addEventListener('click', () => {
         document.getElementById('export-panel').style.display = 'block';
     });
@@ -128,6 +137,12 @@ function renderGantt() {
     minDate.setDate(minDate.getDate() - 2);
     maxDate.setDate(maxDate.getDate() + 5);
     
+<<<<<<< HEAD
+=======
+    ganttConfig.startDate = minDate;
+    ganttConfig.endDate = maxDate;
+    
+>>>>>>> 4cba1af28bc053658aaa6cb862ce14a84b8459c0
     renderTimeline(minDate, maxDate);
     renderTaskTable();
     renderGanttBars(minDate, maxDate);
@@ -209,6 +224,12 @@ function renderTaskTable() {
 // 渲染甘特图进度条
 function renderGanttBars(startDate, endDate) {
     const container = document.getElementById('gantt-bars');
+<<<<<<< HEAD
+=======
+    const totalDays = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24)) + 1;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+>>>>>>> 4cba1af28bc053658aaa6cb862ce14a84b8459c0
     
     let html = '';
     allTasks.forEach(task => {
@@ -295,7 +316,11 @@ async function showDetail(todoId) {
         
         renderSteps(todo.steps || []);
         renderChildren(todo.children || []);
+<<<<<<< HEAD
         renderHistory(todo.status_history || []);
+=======
+        renderHistory(todo.history || []);
+>>>>>>> 4cba1af28bc053658aaa6cb862ce14a84b8459c0
         
         document.getElementById('detail-modal').style.display = 'flex';
     } catch (error) {
@@ -477,6 +502,7 @@ async function exportTodos() {
     document.getElementById('export-panel').style.display = 'none';
 }
 
+<<<<<<< HEAD
 async function importTodos(event) {
     const file = event.target.files[0];
     if (!file) return;
@@ -520,6 +546,8 @@ async function importTodos(event) {
     }
 }
 
+=======
+>>>>>>> 4cba1af28bc053658aaa6cb862ce14a84b8459c0
 function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;

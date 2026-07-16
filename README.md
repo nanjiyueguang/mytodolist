@@ -24,7 +24,11 @@
 ### 1. 安装依赖
 
 ```bash
+<<<<<<< HEAD
 cd /data/mytodolist
+=======
+cd /home/wsl/wsltodo
+>>>>>>> 4cba1af28bc053658aaa6cb862ce14a84b8459c0
 pip3 install -r requirements.txt
 ```
 
@@ -34,13 +38,22 @@ pip3 install -r requirements.txt
 python3 app.py
 ```
 
+<<<<<<< HEAD
 服务默认运行在 `http://0.0.0.0:5050`
+=======
+服务默认运行在 `http://0.0.0.0:5000`
+>>>>>>> 4cba1af28bc053658aaa6cb862ce14a84b8459c0
 
 ### 3. 访问应用
 
 在浏览器中打开：
+<<<<<<< HEAD
 - 本机访问：`http://localhost:5050`
 - 局域网访问：`http://<服务器IP>:5050`
+=======
+- 本机访问：`http://localhost:5000`
+- 局域网访问：`http://<服务器IP>:5000`
+>>>>>>> 4cba1af28bc053658aaa6cb862ce14a84b8459c0
 
 ## 使用说明
 
@@ -75,12 +88,19 @@ python3 app.py
 ## 文件结构
 
 ```
+<<<<<<< HEAD
 mytodolist/
+=======
+wsltodo/
+>>>>>>> 4cba1af28bc053658aaa6cb862ce14a84b8459c0
 ├── app.py              # Flask 应用主程序
 ├── config.py           # 配置文件
 ├── models.py           # 数据库模型
 ├── requirements.txt    # Python 依赖
+<<<<<<< HEAD
 ├── mytodolist.service  # systemd 服务配置
+=======
+>>>>>>> 4cba1af28bc053658aaa6cb862ce14a84b8459c0
 ├── todo.db            # SQLite 数据库（自动生成）
 ├── templates/
 │   └── index.html     # HTML 模板
@@ -143,7 +163,11 @@ GET /api/todos/export?start_date=2026-01-01&end_date=2026-07-15
 
 ```bash
 pip3 install gunicorn
+<<<<<<< HEAD
 gunicorn -w 4 -b 0.0.0.0:5050 app:app
+=======
+gunicorn -w 4 -b 0.0.0.0:5000 app:app
+>>>>>>> 4cba1af28bc053658aaa6cb862ce14a84b8459c0
 ```
 
 ### 后台运行

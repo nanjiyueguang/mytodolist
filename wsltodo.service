@@ -1,0 +1,16 @@
+[Unit]
+Description=WSL Todo Web Application
+After=network.target
+
+[Service]
+Type=simple
+User=wsl
+WorkingDirectory=/home/wsl/wsltodo
+ExecStart=/home/wsl/wsltodo/venv/bin/python3 /home/wsl/wsltodo/app.py
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target

@@ -27,13 +27,21 @@ echo [3/3] 启动服务...
 echo.
 echo ========================================
 echo   服务已启动！
+<<<<<<< HEAD
 echo   请在浏览器打开: http://localhost:5050
+=======
+echo   请在浏览器打开: http://localhost:5000
+>>>>>>> 4cba1af28bc053658aaa6cb862ce14a84b8459c0
 echo   按 Ctrl+C 停止服务
 echo ========================================
 echo.
 
 REM 自动打开浏览器
+<<<<<<< HEAD
 start http://localhost:5050
+=======
+start http://localhost:5000
+>>>>>>> 4cba1af28bc053658aaa6cb862ce14a84b8459c0
 
 REM 启动 Flask 应用
 python app.py

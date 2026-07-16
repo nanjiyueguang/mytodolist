@@ -107,6 +107,17 @@ header h1 {
     gap: 10px;
 }
 
+<<<<<<< HEAD
+=======
+/* 表单样式 */
+.todo-form {
+    background: #f8f9fa;
+    padding: 15px;
+    border-radius: 6px;
+    margin-bottom: 20px;
+}
+
+>>>>>>> 4cba1af28bc053658aaa6cb862ce14a84b8459c0
 /* 单行表单 */
 .todo-form-inline {
     display: flex;
@@ -159,6 +170,27 @@ header h1 {
     padding: 8px 16px;
 }
 
+<<<<<<< HEAD
+=======
+.form-row {
+    display: flex;
+    gap: 15px;
+    margin-bottom: 15px;
+}
+
+.form-group {
+    flex: 1;
+    min-width: 200px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 5px;
+    color: #666;
+    font-size: 13px;
+}
+
+>>>>>>> 4cba1af28bc053658aaa6cb862ce14a84b8459c0
 .form-control {
     width: 100%;
     padding: 8px;
@@ -440,6 +472,21 @@ input[type="range"].form-control {
     z-index: 5;
 }
 
+<<<<<<< HEAD
+=======
+.gantt-bar.completed {
+    background: linear-gradient(90deg, #4CAF50, #45a049);
+}
+
+.gantt-bar.in-progress {
+    background: linear-gradient(90deg, #2196F3, #1976D2);
+}
+
+.gantt-bar.pending {
+    background: linear-gradient(90deg, #9E9E9E, #757575);
+}
+
+>>>>>>> 4cba1af28bc053658aaa6cb862ce14a84b8459c0
 .gantt-bar-progress {
     position: absolute;
     left: 0;
@@ -479,10 +526,13 @@ input[type="range"].form-control {
     overflow-y: auto;
 }
 
+<<<<<<< HEAD
 .modal-large {
     max-width: 800px;
 }
 
+=======
+>>>>>>> 4cba1af28bc053658aaa6cb862ce14a84b8459c0
 .modal-header {
     display: flex;
     justify-content: space-between;
@@ -586,6 +636,36 @@ input[type="range"].form-control {
     margin-top: 10px;
 }
 
+<<<<<<< HEAD
+=======
+/* 优先级样式 */
+.priority-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.priority-badge.priority-high {
+    background: #ffebee;
+    color: #c62828;
+    border: 1px solid #ef9a9a;
+}
+
+.priority-badge.priority-medium {
+    background: #fff3e0;
+    color: #ef6c00;
+    border: 1px solid #ffcc80;
+}
+
+.priority-badge.priority-low {
+    background: #e0f7fa;
+    color: #00838f;
+    border: 1px solid #80deea;
+}
+
+>>>>>>> 4cba1af28bc053658aaa6cb862ce14a84b8459c0
 /* 甘特图进度条优先级颜色 */
 .gantt-bar.priority-high {
     background: linear-gradient(90deg, #e53935, #c62828);
@@ -655,6 +735,13 @@ input[type="range"].form-control {
         gap: 10px;
     }
 
+<<<<<<< HEAD
+=======
+    .form-row {
+        flex-direction: column;
+    }
+
+>>>>>>> 4cba1af28bc053658aaa6cb862ce14a84b8459c0
     .gantt-container {
         flex-direction: column;
         height: auto;
