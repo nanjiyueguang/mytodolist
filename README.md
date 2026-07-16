@@ -22,13 +22,13 @@
 
 ## 安装部署
 
-### 1. 安装 Python 3.10
+### 1. 安装 Python 3.12
 
 ```bash
 cd /tmp
-wget https://www.python.org/ftp/python/3.10.14/Python-3.10.14.tgz
-tar -xzf Python-3.10.14.tgz
-cd Python-3.10.14
+wget https://www.python.org/ftp/python/3.12.3/Python-3.12.3.tgz
+tar -xzf Python-3.12.3.tgz
+cd Python-3.12.3
 
 # 安装编译依赖
 sudo apt update
@@ -40,14 +40,14 @@ make -j$(nproc)
 sudo make altinstall
 
 # 验证
-python3.10 --version
+python3.12 --version
 ```
 
 ### 2. 安装依赖
 
 ```bash
 cd /data/mytodolist
-python3.10 -m venv venv
+python3.12 -m venv venv
 source venv/bin/activate
 
 # 离线安装（推荐）
