@@ -184,7 +184,6 @@ def _auto_update_progress(todo_id):
             todo.progress = stats['percent']
             db.session.commit()
 
-<<<<<<< HEAD
 # ============ 导入导出 API ============
 
 @app.route('/api/todos/template', methods=['GET'])
@@ -409,46 +408,6 @@ def import_todos():
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': f'导入失败: {str(e)}'}), 500
-=======
-# ============ 甘特图 API ============
-
-@app.route('/api/gantt', methods=['GET'])
-def get_gantt_data():
-    """获取甘特图数据（扁平化所有任务）"""
-    todos = Todo.query.filter(
-        Todo.start_date.isnot(None),
-        Todo.end_date.isnot(None)
-    ).order_by(Todo.start_date).all()
-    
-    result = []
-    for t in todos:
-        result.append({
-            'id': t.id,
-            'parent_id': t.parent_id,
-            'title': t.title,
-            'status': t.status,
-            'priority': t.priority,
-            'progress': t.progress,
-            'start_date': t.start_date.strftime('%Y-%m-%d'),
-            'end_date': t.end_date.strftime('%Y-%m-%d'),
-            'duration': (t.end_date - t.start_date).days + 1,
-            'level': _get_level(t),
-            'step_stats': t.get_step_stats(),
-            'children_stats': t.get_children_stats()
-        })
-    return jsonify(result)
-
-def _get_level(todo):
-    """获取任务层级深度"""
-    level = 0
-    current = todo
-    while current.parent_id:
-        level += 1
-        current = Todo.query.get(current.parent_id)
-        if not current:
-            break
-    return level
->>>>>>> 4cba1af28bc053658aaa6cb862ce14a84b8459c0
 
 # ============ 导出 API ============
 
