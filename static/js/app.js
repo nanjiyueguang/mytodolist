@@ -50,8 +50,7 @@ function bindEvents() {
         if (e.key === 'Enter') addChild();
     });
     
-    // 拖拽分隔条
-    initResizer();
+    // 列宽拖拽在渲染后初始化
 }
 
 async function loadTodos() {
@@ -219,6 +218,9 @@ function renderTaskTable() {
     });
     
     tbody.innerHTML = html;
+    
+    // 初始化列宽拖拽
+    initColumnResizer();
 }
 
 // 根据进度返回颜色
@@ -552,35 +554,68 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
-// 拖拽分隔条
-function initResizer() {
-    const resizer = document.getElementById('gantt-resizer');
-    const table = document.querySelector('.gantt-table');
-    let isResizing = false;
-    let startX = 0;
-    let startWidth = 0;
-
-    resizer.addEventListener('mousedown', (e) => {
-        isResizing = true;
-        startX = e.clientX;
-        startWidth = table.offsetWidth;
-        document.body.style.cursor = 'col-resize';
-        document.body.style.userSelect = 'none';
+// 初始化列宽拖拽
+function initColumnResizer() {
+    const header = document.querySelector('.table-header');
+    if (!header) return;
+    
+    // 移除旧的 resizer
+    header.querySelectorAll('.col-resizer').forEach(r => r.remove());
+    
+    // 为每个列添加拖拽手柄（最后一列除外）
+    const cols = header.querySelectorAll(':scope > div');
+    cols.forEach((col, index) => {
+        if (index === cols.length - 1) return; // 最后一列不添加
+        
+        const resizer = document.createElement('div');
+        resizer.className = 'col-resizer';
+        col.appendChild(resizer);
+        
+        resizer.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            initResize(col, e);
+        });
     });
+}
 
-    document.addEventListener('mousemove', (e) => {
-        if (!isResizing) return;
-        const newWidth = startWidth + (e.clientX - startX);
-        if (newWidth >= 350 && newWidth <= 900) {
-            table.style.width = newWidth + 'px';
-        }
-    });
-
-    document.addEventListener('mouseup', () => {
-        if (isResizing) {
-            isResizing = false;
-            document.body.style.cursor = '';
-            document.body.style.userSelect = '';
-        }
-    });
+function initResize(col, startEvent) {
+    const startX = startEvent.clientX;
+    const startWidth = col.offsetWidth;
+    const resizer = col.querySelector('.col-resizer');
+    
+    const minWidth = 50;
+    
+    function doResize(e) {
+        const newWidth = Math.max(minWidth, startWidth + (e.clientX - startX));
+        col.style.width = newWidth + 'px';
+        col.style.minWidth = newWidth + 'px';
+        col.style.flex = 'none';
+        
+        // 同步更新所有行的对应列
+        const colIndex = Array.from(col.parentElement.children).indexOf(col);
+        const rows = document.querySelectorAll('.task-row');
+        rows.forEach(row => {
+            const cell = row.children[colIndex];
+            if (cell) {
+                cell.style.width = newWidth + 'px';
+                cell.style.minWidth = newWidth + 'px';
+                cell.style.flex = 'none';
+            }
+        });
+    }
+    
+    function stopResize() {
+        if (resizer) resizer.classList.remove('resizing');
+        document.removeEventListener('mousemove', doResize);
+        document.removeEventListener('mouseup', stopResize);
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+    }
+    
+    if (resizer) resizer.classList.add('resizing');
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+    document.addEventListener('mousemove', doResize);
+    document.addEventListener('mouseup', stopResize);
 }
