@@ -390,11 +390,19 @@ def import_todos():
             
             # 创建任务
             try:
+                # 根据状态设置初始进度
+                initial_progress = 0
+                if data['status'] == '已完成':
+                    initial_progress = 100
+                elif data['status'] == '已取消':
+                    initial_progress = 0
+                
                 todo = Todo(
                     title=str(data['title'])[:200],
                     description=str(data.get('description', '') or ''),
                     priority=data['priority'],
                     status=data['status'],
+                    progress=initial_progress,
                     start_date=data.get('start_date'),
                     end_date=data.get('end_date'),
                     parent_id=parent_id
