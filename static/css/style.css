@@ -337,6 +337,39 @@ input[type="range"].form-control {
     color: #666;
 }
 
+.status-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.status-待开始 {
+    background: #e0e0e0;
+    color: #666;
+}
+
+.status-进行中 {
+    background: #d4edda;
+    color: #155724;
+}
+
+.status-已完成 {
+    background: #cce5ff;
+    color: #004085;
+}
+
+.status-已取消 {
+    background: #f8d7da;
+    color: #721c24;
+}
+
+.status-暂挂 {
+    background: #fff3cd;
+    color: #856404;
+}
+
 /* 逾期任务样式 */
 .overdue-task {
     background: #fff5f5 !important;

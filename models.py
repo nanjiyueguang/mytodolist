@@ -39,6 +39,20 @@ class Todo(db.Model):
             and self.status not in ('已完成', '已取消')
         )
         
+        # 计算进度：优先使用步骤统计，如果有子任务则使用子任务平均进度
+        calculated_progress = self.progress
+        
+        # 如果有子任务，根据子任务进度计算
+        children_list = self.children.all()
+        if children_list:
+            total_children_progress = sum(child.progress for child in children_list)
+            calculated_progress = int(total_children_progress / len(children_list))
+        else:
+            # 如果没有子任务，根据步骤计算
+            step_stats = self.get_step_stats()
+            if step_stats['total'] > 0:
+                calculated_progress = step_stats['percent']
+        
         data = {
             'id': self.id,
             'parent_id': self.parent_id,
@@ -46,15 +60,15 @@ class Todo(db.Model):
             'description': self.description,
             'status': self.status,
             'priority': self.priority,
-            'progress': self.progress,
+            'progress': calculated_progress,
             'start_date': self.start_date.strftime('%Y-%m-%d') if self.start_date else None,
             'end_date': self.end_date.strftime('%Y-%m-%d') if self.end_date else None,
             'is_overdue': is_overdue,
             'created_at': self.created_at.strftime('%Y-%m-%d %H:%M:%S'),
             'updated_at': self.updated_at.strftime('%Y-%m-%d %H:%M:%S'),
             'steps': [s.to_dict() for s in self.steps.all()],
-            'children': [c.to_dict(include_children=True) for c in self.children.all()] if include_children else [],
-            'step_stats': self.get_step_stats(),
+            'children': [c.to_dict(include_children=True) for c in children_list] if include_children else [],
+            'step_stats': step_stats,
             'children_stats': self.get_children_stats()
         }
         return data

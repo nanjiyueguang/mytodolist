@@ -195,6 +195,7 @@ function renderTaskTable() {
                     ${overdueMark}
                 </div>
                 <div class="col-priority">${priorityIcon} ${task.priority}</div>
+                <div class="col-status"><span class="status-badge status-${task.status}">${task.status}</span></div>
                 <div class="col-date">${task.start_date || '-'}</div>
                 <div class="col-date">${task.end_date || '-'}</div>
                 <div class="col-duration">${task.duration || 0}</div>
