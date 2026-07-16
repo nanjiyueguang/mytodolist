@@ -63,33 +63,19 @@
             <button id="btn-create" class="btn btn-primary btn-create">➕ 创建</button>
         </div>
 
-        <!-- 甘特图主区域 -->
-        <div class="gantt-container">
-            <!-- 左侧任务表格 -->
-            <div class="gantt-table">
-                <div class="table-header">
-                    <div class="col-task-code">任务编码</div>
-                    <div class="col-task-name">任务名称</div>
-                    <div class="col-priority">优先级</div>
-                    <div class="col-status">状态</div>
-                    <div class="col-date">开始时间</div>
-                    <div class="col-date">结束时间</div>
-                    <div class="col-duration">工期(天)</div>
-                    <div class="col-progress">进度(%)</div>
-                </div>
-                <div id="task-table-body" class="table-body"></div>
+        <!-- 任务列表 -->
+        <div class="task-list-container">
+            <div class="table-header">
+                <div class="col-task-code">任务编码</div>
+                <div class="col-task-name">任务名称</div>
+                <div class="col-priority">优先级</div>
+                <div class="col-status">状态</div>
+                <div class="col-date">开始时间</div>
+                <div class="col-date">结束时间</div>
+                <div class="col-duration">工期(天)</div>
+                <div class="col-progress">进度</div>
             </div>
-
-            <!-- 拖拽分隔条 -->
-            <div class="gantt-resizer" id="gantt-resizer"></div>
-
-            <!-- 右侧甘特图 -->
-            <div class="gantt-chart">
-                <div class="gantt-scroll-wrapper" id="gantt-scroll-wrapper">
-                    <div id="gantt-timeline" class="gantt-timeline"></div>
-                    <div id="gantt-bars" class="gantt-bars"></div>
-                </div>
-            </div>
+            <div id="task-table-body" class="table-body"></div>
         </div>
     </div>
 

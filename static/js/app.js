@@ -59,7 +59,7 @@ async function loadTodos() {
         const response = await fetch('/api/todos');
         const todos = await response.json();
         allTasks = flattenTasks(todos);
-        renderGantt();
+        renderTaskTable();
     } catch (error) {
         console.error('加载失败:', error);
     }
@@ -175,6 +175,11 @@ function renderTimeline(startDate, endDate) {
 function renderTaskTable() {
     const tbody = document.getElementById('task-table-body');
     
+    if (allTasks.length === 0) {
+        tbody.innerHTML = '<div class="empty-state">暂无任务</div>';
+        return;
+    }
+    
     let html = '';
     allTasks.forEach(task => {
         const hasChildren = task.children && task.children.length > 0;
@@ -185,6 +190,15 @@ function renderTaskTable() {
         
         // 逾期标记
         const overdueMark = task.is_overdue ? '<span class="overdue-badge">逾期</span>' : '';
+        
+        // 进度条
+        const progress = task.progress || 0;
+        const progressBar = `
+            <div class="progress-bar-container">
+                <div class="progress-bar" style="width: ${progress}%; background: ${getProgressColor(progress)};"></div>
+                <span class="progress-text">${progress}%</span>
+            </div>
+        `;
         
         html += `
             <div class="task-row level-${task.level} ${task.is_overdue ? 'overdue-task' : ''}" onclick="showDetail(${task.id})">
@@ -199,12 +213,20 @@ function renderTaskTable() {
                 <div class="col-date">${task.start_date || '-'}</div>
                 <div class="col-date">${task.end_date || '-'}</div>
                 <div class="col-duration">${task.duration || 0}</div>
-                <div class="col-progress">${task.progress || 0}%</div>
+                <div class="col-progress">${progressBar}</div>
             </div>
         `;
     });
     
     tbody.innerHTML = html;
+}
+
+// 根据进度返回颜色
+function getProgressColor(progress) {
+    if (progress === 100) return '#4CAF50';
+    if (progress >= 50) return '#2196F3';
+    if (progress > 0) return '#FF9800';
+    return '#e0e0e0';
 }
 
 // 渲染甘特图进度条
