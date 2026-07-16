@@ -1,0 +1,16 @@
+[Unit]
+Description=MyTodoList Web Application
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/data/mytodolist
+ExecStart=/data/mytodolist/venv/bin/python3 /data/mytodolist/app.py
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target

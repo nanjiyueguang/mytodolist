@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Todo 任务管理 - 甘特图</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>📋 任务管理</h1>
+            <div class="header-actions">
+                <button id="btn-import" class="btn btn-secondary">📥 导入</button>
+                <button id="btn-export" class="btn btn-secondary">📊 导出Excel</button>
+            </div>
+        </header>
+
+        <!-- 导入面板 -->
+        <div id="import-panel" class="export-panel" style="display: none;">
+            <h3>导入任务</h3>
+            <div class="import-actions">
+                <a href="/api/todos/template" class="btn btn-secondary">📄 下载导入模板</a>
+                <label class="btn btn-primary" style="cursor:pointer;margin-left:10px;">
+                    📤 选择文件并导入
+                    <input type="file" id="import-file" accept=".xlsx,.xls" style="display:none;">
+                </label>
+                <button id="btn-cancel-import" class="btn btn-secondary" style="margin-left:10px;">取消</button>
+            </div>
+            <div id="import-result" style="margin-top:10px;"></div>
+        </div>
+
+        <!-- 导出面板 -->
+        <div id="export-panel" class="export-panel" style="display: none;">
+            <h3>导出任务列表</h3>
+            <div class="export-form">
+                <div class="form-group">
+                    <label>开始日期：</label>
+                    <input type="date" id="export-start-date">
+                </div>
+                <div class="form-group">
+                    <label>结束日期：</label>
+                    <input type="date" id="export-end-date">
+                </div>
+                <div class="export-actions">
+                    <button id="btn-confirm-export" class="btn btn-primary">确认导出</button>
+                    <button id="btn-cancel-export" class="btn btn-secondary">取消</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 新建任务 -->
+        <div class="todo-form-inline">
+            <input type="text" id="todo-title" placeholder="任务标题 *" class="form-control-inline form-title">
+            <select id="todo-priority" class="form-control-inline form-priority">
+                <option value="高">🔴 高</option>
+                <option value="中" selected>🟡 中</option>
+                <option value="低">🔵 低</option>
+            </select>
+            <input type="date" id="todo-start-date" class="form-control-inline form-date" title="开始日期">
+            <input type="date" id="todo-end-date" class="form-control-inline form-date" title="结束日期">
+            <input type="text" id="todo-description" placeholder="描述（可选）" class="form-control-inline form-desc">
+            <button id="btn-create" class="btn btn-primary btn-create">➕ 创建</button>
+        </div>
+
+        <!-- 甘特图主区域 -->
+        <div class="gantt-container">
+            <!-- 左侧任务表格 -->
+            <div class="gantt-table">
+                <div class="table-header">
+                    <div class="col-task-code">任务编码</div>
+                    <div class="col-task-name">任务名称</div>
+                    <div class="col-priority">优先级</div>
+                    <div class="col-date">开始时间</div>
+                    <div class="col-date">结束时间</div>
+                    <div class="col-duration">工期(天)</div>
+                    <div class="col-progress">进度(%)</div>
+                </div>
+                <div id="task-table-body" class="table-body"></div>
+            </div>
+
+            <!-- 拖拽分隔条 -->
+            <div class="gantt-resizer" id="gantt-resizer"></div>
+
+            <!-- 右侧甘特图 -->
+            <div class="gantt-chart">
+                <div class="gantt-scroll-wrapper" id="gantt-scroll-wrapper">
+                    <div id="gantt-timeline" class="gantt-timeline"></div>
+                    <div id="gantt-bars" class="gantt-bars"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 任务详情弹窗 -->
+    <div id="detail-modal" class="modal" style="display: none;">
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h3 id="detail-title">任务详情</h3>
+                <button class="btn-close" onclick="closeDetailModal()">×</button>
+            </div>
+            <div class="detail-body">
+                <div class="detail-section">
+                    <label>标题：</label>
+                    <input type="text" id="detail-edit-title" class="form-control">
+                </div>
+                <div class="detail-section">
+                    <label>描述：</label>
+                    <textarea id="detail-edit-description" class="form-control"></textarea>
+                </div>
+                <div class="detail-row">
+                    <div class="detail-section">
+                        <label>优先级：</label>
+                        <select id="detail-edit-priority" class="form-control">
+                            <option value="高">🔴 高</option>
+                            <option value="中">🟡 中</option>
+                            <option value="低">🔵 低</option>
+                        </select>
+                    </div>
+                    <div class="detail-section">
+                        <label>状态：</label>
+                        <select id="detail-edit-status" class="form-control">
+                            <option value="待开始">待开始</option>
+                            <option value="进行中">进行中</option>
+                            <option value="暂挂">暂挂</option>
+                            <option value="已完成">已完成</option>
+                            <option value="已取消">已取消</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="detail-row">
+                    <div class="detail-section">
+                        <label>开始日期：</label>
+                        <input type="date" id="detail-edit-start" class="form-control">
+                    </div>
+                    <div class="detail-section">
+                        <label>结束日期：</label>
+                        <input type="date" id="detail-edit-end" class="form-control">
+                    </div>
+                </div>
+                <div class="detail-section">
+                    <label>进度：<span id="detail-progress-value">0</span>%</label>
+                    <input type="range" id="detail-edit-progress" min="0" max="100" class="form-control">
+                </div>
+                
+                <div class="detail-section">
+                    <label>📝 步骤清单：</label>
+                    <div id="detail-steps" class="steps-list"></div>
+                    <div class="step-add">
+                        <input type="text" id="step-input" placeholder="添加步骤..." class="form-control">
+                        <button id="btn-add-step" class="btn btn-small btn-primary">添加</button>
+                    </div>
+                </div>
+
+                <div class="detail-section">
+                    <label>📂 子任务：</label>
+                    <div id="detail-children" class="children-list"></div>
+                    <div class="child-add">
+                        <input type="text" id="child-input" placeholder="添加子任务..." class="form-control">
+                        <button id="btn-add-child" class="btn btn-small btn-primary">添加</button>
+                    </div>
+                </div>
+
+                <div class="detail-section">
+                    <label>📜 状态变更历史：</label>
+                    <div id="detail-history" class="history-list"></div>
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button id="btn-delete-detail" class="btn btn-danger">🗑️ 删除任务</button>
+                <div style="flex:1"></div>
+                <button id="btn-save-detail" class="btn btn-primary">保存</button>
+                <button id="btn-cancel-detail" class="btn btn-secondary">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>
