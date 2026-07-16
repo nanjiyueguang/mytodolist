@@ -194,7 +194,7 @@ def download_template():
     ws.title = "导入模板"
     
     # 表头
-    headers = ['标题*', '描述', '优先级', '状态', '进度(%)', '开始日期', '结束日期', '父任务ID']
+    headers = ['任务编号*', '标题*', '描述', '优先级', '状态', '进度(%)', '开始日期', '结束日期', '父任务编号']
     header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
     header_font = Font(bold=True, color="FFFFFF")
     
@@ -206,9 +206,10 @@ def download_template():
     
     # 示例数据
     sample_data = [
-        ['完成项目报告', '撰写Q3季度报告', '高', '进行中', 50, '2026-07-16', '2026-07-20', ''],
-        ['准备会议材料', '准备周一例会PPT', '中', '待开始', 0, '2026-07-17', '2026-07-18', ''],
-        ['子任务示例', '这是一个子任务', '低', '待开始', 0, '2026-07-16', '2026-07-25', 1],
+        ['1', '完成项目报告', '撰写Q3季度报告', '高', '进行中', 50, '2026-07-16', '2026-07-20', ''],
+        ['1.1', '撰写引言', '项目背景介绍', '中', '已完成', 100, '2026-07-16', '2026-07-17', '1'],
+        ['1.2', '数据分析', 'Q3数据整理', '中', '进行中', 50, '2026-07-17', '2026-07-19', '1'],
+        ['2', '准备会议材料', '准备周一例会PPT', '中', '待开始', 0, '2026-07-17', '2026-07-18', ''],
     ]
     
     for row, data in enumerate(sample_data, 2):
@@ -216,13 +217,14 @@ def download_template():
             ws.cell(row=row, column=col, value=value)
     
     # 设置列宽
-    for col_letter, width in [('A', 25), ('B', 30), ('C', 10), ('D', 12), ('E', 10), ('F', 12), ('G', 12), ('H', 12)]:
+    for col_letter, width in [('A', 12), ('B', 25), ('C', 30), ('D', 10), ('E', 12), ('F', 10), ('G', 12), ('H', 12), ('I', 14)]:
         ws.column_dimensions[col_letter].width = width
     
     # 添加说明工作表
     ws_help = wb.create_sheet("填写说明")
     help_data = [
         ['字段', '必填', '说明'],
+        ['任务编号', '是', '唯一标识，如：1, 1.1, 1.2, 2'],
         ['标题', '是', '任务标题，最多200字符'],
         ['描述', '否', '任务描述'],
         ['优先级', '否', '高/中/低，默认为"中"'],
@@ -230,7 +232,7 @@ def download_template():
         ['进度(%)', '否', '0-100，默认为0'],
         ['开始日期', '否', '格式：YYYY-MM-DD'],
         ['结束日期', '否', '格式：YYYY-MM-DD'],
-        ['父任务ID', '否', '填写父任务的ID，创建子任务时使用'],
+        ['父任务编号', '否', '填写父任务的编号，如：1'],
     ]
     
     for row, data in enumerate(help_data, 1):
@@ -273,7 +275,7 @@ def import_todos():
         
         # 读取表头
         headers = [cell.value for cell in ws[1]]
-        required_fields = ['标题*']
+        required_fields = ['任务编号*', '标题*']
         
         # 验证必填字段
         for field in required_fields:
@@ -282,6 +284,7 @@ def import_todos():
         
         # 字段映射
         field_map = {
+            '任务编号*': 'task_no',
             '标题*': 'title',
             '描述': 'description',
             '优先级': 'priority',
@@ -289,14 +292,13 @@ def import_todos():
             '进度(%)': 'progress',
             '开始日期': 'start_date',
             '结束日期': 'end_date',
-            '父任务ID': 'parent_id'
+            '父任务编号': 'parent_task_no'
         }
         
-        success_count = 0
-        error_count = 0
-        errors = []
+        # 第一遍：读取所有任务数据
+        tasks_data = []
+        task_no_map = {}  # 任务编号 -> 索引
         
-        # 读取数据行
         for row_idx, row in enumerate(ws.iter_rows(min_row=2, values_only=True), 2):
             if not row or not any(row):
                 continue
@@ -309,10 +311,30 @@ def import_todos():
                     data[field_name] = value
             
             # 验证必填字段
-            if not data.get('title'):
-                errors.append(f'第{row_idx}行: 标题不能为空')
-                error_count += 1
+            if not data.get('task_no'):
                 continue
+            if not data.get('title'):
+                continue
+            
+            task_no = str(data['task_no']).strip()
+            data['task_no'] = task_no
+            data['row_idx'] = row_idx
+            
+            task_no_map[task_no] = len(tasks_data)
+            tasks_data.append(data)
+        
+        # 第二遍：创建任务（先创建父任务，再创建子任务）
+        created_todos = {}  # task_no -> todo_id
+        success_count = 0
+        error_count = 0
+        errors = []
+        
+        def create_todo_with_parent(data):
+            nonlocal success_count, error_count
+            
+            task_no = data['task_no']
+            if task_no in created_todos:
+                return  # 已创建
             
             # 处理日期
             try:
@@ -328,9 +350,9 @@ def import_todos():
                     elif hasattr(data['end_date'], 'date'):
                         data['end_date'] = data['end_date'].date()
             except ValueError as e:
-                errors.append(f'第{row_idx}行: 日期格式错误 - {str(e)}')
+                errors.append(f"第{data['row_idx']}行: 日期格式错误 - {str(e)}")
                 error_count += 1
-                continue
+                return
             
             # 处理优先级
             if data.get('priority') and data['priority'] not in ['高', '中', '低']:
@@ -352,19 +374,26 @@ def import_todos():
             except (ValueError, TypeError):
                 data['progress'] = 0
             
-            # 处理父任务ID
+            # 处理父任务
             parent_id = None
-            if data.get('parent_id'):
-                try:
-                    parent_id = int(data['parent_id'])
-                    # 验证父任务是否存在
-                    parent = Todo.query.get(parent_id)
-                    if not parent:
-                        errors.append(f'第{row_idx}行: 父任务ID {parent_id} 不存在')
-                        error_count += 1
-                        continue
-                except (ValueError, TypeError):
-                    parent_id = None
+            parent_task_no = data.get('parent_task_no')
+            if parent_task_no:
+                parent_task_no = str(parent_task_no).strip()
+                if parent_task_no not in task_no_map:
+                    errors.append(f"第{data['row_idx']}行: 父任务编号 {parent_task_no} 不存在")
+                    error_count += 1
+                    return
+                
+                # 确保父任务已创建
+                parent_data = tasks_data[task_no_map[parent_task_no]]
+                create_todo_with_parent(parent_data)
+                
+                if parent_task_no in created_todos:
+                    parent_id = created_todos[parent_task_no]
+                else:
+                    errors.append(f"第{data['row_idx']}行: 父任务创建失败")
+                    error_count += 1
+                    return
             
             # 创建任务
             try:
@@ -389,10 +418,16 @@ def import_todos():
                     remark='导入创建'
                 )
                 db.session.add(history)
+                
+                created_todos[task_no] = todo.id
                 success_count += 1
             except Exception as e:
-                errors.append(f'第{row_idx}行: 创建失败 - {str(e)}')
+                errors.append(f"第{data['row_idx']}行: 创建失败 - {str(e)}")
                 error_count += 1
+        
+        # 创建所有任务
+        for data in tasks_data:
+            create_todo_with_parent(data)
         
         db.session.commit()
         
