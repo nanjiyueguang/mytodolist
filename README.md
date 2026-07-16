@@ -10,6 +10,7 @@
 - 🎯 优先级管理：高/中/低
 - 🔍 按状态筛选任务
 - 📥 按时间范围导出 Excel（包含任务列表和状态变更历史）
+- 📤 支持从 Excel 模板批量导入任务
 - 🌐 Web 界面，支持浏览器访问
 
 ## 技术栈
@@ -21,39 +22,54 @@
 
 ## 安装部署
 
-### 1. 安装依赖
+### 1. 安装 Python 3.10
 
 ```bash
-<<<<<<< HEAD
+cd /tmp
+wget https://www.python.org/ftp/python/3.10.14/Python-3.10.14.tgz
+tar -xzf Python-3.10.14.tgz
+cd Python-3.10.14
+
+# 安装编译依赖
+sudo apt update
+sudo apt install -y zlib1g-dev libncurses5-dev libgdbm-dev libnss3-dev libssl-dev libreadline-dev libffi-dev libsqlite3-dev libbz2-dev
+
+# 编译安装（altinstall 不覆盖系统 python3）
+./configure --enable-optimizations --prefix=/usr/local
+make -j$(nproc)
+sudo make altinstall
+
+# 验证
+python3.10 --version
+```
+
+### 2. 安装依赖
+
+```bash
 cd /data/mytodolist
-=======
-cd /home/wsl/wsltodo
->>>>>>> 4cba1af28bc053658aaa6cb862ce14a84b8459c0
-pip3 install -r requirements.txt
+python3.10 -m venv venv
+source venv/bin/activate
+
+# 离线安装（推荐）
+pip install --no-index --find-links=offline-packages -r requirements.txt
+
+# 或在线安装
+pip install -r requirements.txt
 ```
 
-### 2. 启动服务
+### 3. 启动服务
 
 ```bash
-python3 app.py
+python app.py
 ```
 
-<<<<<<< HEAD
 服务默认运行在 `http://0.0.0.0:5050`
-=======
-服务默认运行在 `http://0.0.0.0:5000`
->>>>>>> 4cba1af28bc053658aaa6cb862ce14a84b8459c0
 
-### 3. 访问应用
+### 4. 访问应用
 
 在浏览器中打开：
-<<<<<<< HEAD
 - 本机访问：`http://localhost:5050`
 - 局域网访问：`http://<服务器IP>:5050`
-=======
-- 本机访问：`http://localhost:5000`
-- 局域网访问：`http://<服务器IP>:5000`
->>>>>>> 4cba1af28bc053658aaa6cb862ce14a84b8459c0
 
 ## 使用说明
 
@@ -85,22 +101,22 @@ python3 app.py
    - Todo列表：任务基本信息
    - 状态变更历史：所有状态变更记录
 
+### 导入任务
+1. 点击"导入"按钮
+2. 下载导入模板
+3. 按模板格式填写任务数据
+4. 选择文件并导入
+
 ## 文件结构
 
 ```
-<<<<<<< HEAD
 mytodolist/
-=======
-wsltodo/
->>>>>>> 4cba1af28bc053658aaa6cb862ce14a84b8459c0
 ├── app.py              # Flask 应用主程序
 ├── config.py           # 配置文件
 ├── models.py           # 数据库模型
 ├── requirements.txt    # Python 依赖
-<<<<<<< HEAD
 ├── mytodolist.service  # systemd 服务配置
-=======
->>>>>>> 4cba1af28bc053658aaa6cb862ce14a84b8459c0
+├── offline-packages/   # 离线安装包
 ├── todo.db            # SQLite 数据库（自动生成）
 ├── templates/
 │   └── index.html     # HTML 模板
@@ -157,17 +173,24 @@ DELETE /api/todos/<id>
 GET /api/todos/export?start_date=2026-01-01&end_date=2026-07-15
 ```
 
+### 下载导入模板
+```
+GET /api/todos/template
+```
+
+### 导入任务
+```
+POST /api/todos/import
+Body: multipart/form-data, file=<Excel文件>
+```
+
 ## 生产环境部署
 
 ### 使用 Gunicorn（推荐）
 
 ```bash
 pip3 install gunicorn
-<<<<<<< HEAD
 gunicorn -w 4 -b 0.0.0.0:5050 app:app
-=======
-gunicorn -w 4 -b 0.0.0.0:5000 app:app
->>>>>>> 4cba1af28bc053658aaa6cb862ce14a84b8459c0
 ```
 
 ### 后台运行
@@ -178,6 +201,21 @@ nohup python3 app.py > todo.log 2>&1 &
 
 或使用 systemd 服务管理。
 
+### systemd 服务
+
+```bash
+# 复制服务文件
+sudo cp mytodolist.service /etc/systemd/system/
+
+# 启动服务
+sudo systemctl daemon-reload
+sudo systemctl enable mytodolist
+sudo systemctl start mytodolist
+
+# 查看状态
+sudo systemctl status mytodolist
+```
+
 ## 数据备份
 
 数据库文件为 `todo.db`，定期备份此文件即可。
@@ -187,3 +225,4 @@ nohup python3 app.py > todo.log 2>&1 &
 - 首次运行会自动创建 `todo.db` 数据库文件
 - 状态变更历史不可删除（随任务一起删除）
 - 导出功能需要安装 openpyxl 依赖
+- 离线安装包位于 `offline-packages/` 目录，适用于无网络环境
