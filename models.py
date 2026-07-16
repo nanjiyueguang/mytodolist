@@ -39,6 +39,9 @@ class Todo(db.Model):
             and self.status not in ('已完成', '已取消')
         )
         
+        # 先获取步骤统计（无论是否有子任务）
+        step_stats = self.get_step_stats()
+        
         # 计算进度：优先使用步骤统计，如果有子任务则使用子任务平均进度
         calculated_progress = self.progress
         
@@ -49,7 +52,6 @@ class Todo(db.Model):
             calculated_progress = int(total_children_progress / len(children_list))
         else:
             # 如果没有子任务，根据步骤计算
-            step_stats = self.get_step_stats()
             if step_stats['total'] > 0:
                 calculated_progress = step_stats['percent']
         
