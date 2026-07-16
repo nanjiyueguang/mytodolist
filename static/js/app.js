@@ -30,6 +30,7 @@ function bindEvents() {
     
     document.getElementById('btn-save-detail').addEventListener('click', saveDetail);
     document.getElementById('btn-cancel-detail').addEventListener('click', closeDetailModal);
+    document.getElementById('btn-delete-detail').addEventListener('click', deleteTodo);
     
     document.getElementById('btn-add-step').addEventListener('click', addStep);
     document.getElementById('step-input').addEventListener('keypress', (e) => {
@@ -448,6 +449,20 @@ async function saveDetail() {
 function closeDetailModal() {
     document.getElementById('detail-modal').style.display = 'none';
     currentDetailTodoId = null;
+}
+
+async function deleteTodo() {
+    if (!currentDetailTodoId) return;
+    if (!confirm('确定删除此任务及其所有子任务？\n此操作不可恢复！')) return;
+    try {
+        const response = await fetch(`/api/todos/${currentDetailTodoId}`, { method: 'DELETE' });
+        if (!response.ok) throw new Error('删除失败');
+        closeDetailModal();
+        loadTodos();
+    } catch (error) {
+        console.error('删除失败:', error);
+        alert('删除任务失败');
+    }
 }
 
 async function exportTodos() {
