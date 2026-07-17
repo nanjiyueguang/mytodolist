@@ -113,7 +113,9 @@ function renderTaskTable() {
         const toggleIcon = hasChildren
             ? `<span class="task-toggle" data-task-id="${task.id}" data-action="toggle-children">${isCollapsed ? '▶' : '▼'}</span>`
             : '';
-        const descText = task.description ? `<div class="task-desc-inline" title="点击编辑描述" data-task-id="${task.id}" data-action="edit-desc-inline">${escapeHtml(task.description)}</div>` : '';
+        const descText = task.description 
+            ? `<div class="task-desc-inline" title="点击编辑描述" data-task-id="${task.id}" data-action="edit-desc-inline">${escapeHtml(task.description)}</div>`
+            : `<div class="task-desc-inline task-desc-empty" title="点击添加描述" data-task-id="${task.id}" data-action="edit-desc-inline">+描述</div>`;
 
         html += `
             <div class="task-row level-${task.level} ${task.is_overdue ? 'overdue-task' : ''} ${isCollapsed ? 'collapsed' : ''}" data-task-id="${task.id}">
@@ -366,7 +368,8 @@ function startTitleEdit(span) {
 // 描述行内编辑
 function startDescEdit(span) {
     const taskId = parseInt(span.getAttribute('data-task-id'));
-    const currentDesc = span.textContent;
+    const isEmpty = span.classList.contains('task-desc-empty');
+    const currentDesc = isEmpty ? '' : span.textContent;
     const input = document.createElement('textarea');
     input.value = currentDesc;
     input.className = 'inline-desc-input';

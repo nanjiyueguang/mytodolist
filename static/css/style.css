@@ -452,6 +452,15 @@ header h1 {
     color: #666;
 }
 
+.task-desc-empty {
+    color: #ccc;
+    font-style: italic;
+}
+
+.task-desc-empty:hover {
+    color: #4CAF50;
+}
+
 .task-row-actions {
     display: flex;
     gap: 6px;
