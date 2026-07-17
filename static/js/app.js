@@ -247,6 +247,21 @@ function renderTaskTable() {
             }
         });
         
+        // 点击任务行高亮
+        tbody.addEventListener('click', (e) => {
+            // 排除交互元素
+            if (e.target.closest('button, select, input, [data-action]')) return;
+            
+            const row = e.target.closest('.task-row');
+            if (!row) return;
+            
+            // 移除其他行的高亮
+            document.querySelectorAll('.task-row.selected').forEach(r => r.classList.remove('selected'));
+            
+            // 高亮当前行
+            row.classList.add('selected');
+        });
+        
         // 行内 select 改变事件
         tbody.addEventListener('change', (e) => {
             const sel = e.target.closest('[data-action="edit-priority"]');
@@ -277,6 +292,13 @@ function renderTaskTable() {
     // 初始化列宽拖拽
     initColumnResizer();
 }
+
+// Esc 键取消选中
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+        document.querySelectorAll('.task-row.selected').forEach(r => r.classList.remove('selected'));
+    }
+});
 
 // 绑定筛选器事件
 function bindFilters() {
