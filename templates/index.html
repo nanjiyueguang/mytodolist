@@ -77,14 +77,18 @@
                     </select>
                 </div>
                 <div class="col-status">
-                    <select id="filter-status" class="filter-select">
-                        <option value="">状态</option>
-                        <option value="待开始">待开始</option>
-                        <option value="进行中">进行中</option>
-                        <option value="暂挂">暂挂</option>
-                        <option value="已完成">已完成</option>
-                        <option value="已取消">已取消</option>
-                    </select>
+                    <div class="multi-filter" id="filter-status">
+                        <select class="filter-select" id="filter-status-btn">
+                            <option>状态</option>
+                        </select>
+                        <div class="multi-filter-dropdown" id="filter-status-dropdown" style="display:none;">
+                            <label><input type="checkbox" value="待开始"> 待开始</label>
+                            <label><input type="checkbox" value="进行中"> 进行中</label>
+                            <label><input type="checkbox" value="暂挂"> 暂挂</label>
+                            <label><input type="checkbox" value="已完成"> 已完成</label>
+                            <label><input type="checkbox" value="已取消"> 已取消</label>
+                        </div>
+                    </div>
                 </div>
                 <div class="col-date">
                     <label class="filter-label">开始时间</label>

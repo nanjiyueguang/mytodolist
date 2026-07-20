@@ -3,7 +3,7 @@ let allTasks = []; // 扁平化后的任务列表
 let collapsedTasks = new Set(); // 折叠的任务ID（隐藏子任务）
 let filters = {
     priority: '',
-    status: '',
+    status: [],  // 改为数组支持多选
     startDate: '',
     endDate: ''
 };
@@ -303,36 +303,115 @@ document.addEventListener('keydown', (e) => {
 
 // 绑定筛选器事件
 function bindFilters() {
+    // 优先级筛选
     const priorityFilter = document.getElementById('filter-priority');
-    const statusFilter = document.getElementById('filter-status');
+    if (priorityFilter) {
+        priorityFilter.addEventListener('change', (e) => {
+            filters.priority = e.target.value;
+            renderTaskTable();
+        });
+    }
+    
+    // 开始日期筛选
     const startDateFilter = document.getElementById('filter-start-date');
+    if (startDateFilter) {
+        startDateFilter.addEventListener('change', (e) => {
+            filters.startDate = e.target.value;
+            renderTaskTable();
+        });
+    }
+    
+    // 结束日期筛选
     const endDateFilter = document.getElementById('filter-end-date');
+    if (endDateFilter) {
+        endDateFilter.addEventListener('change', (e) => {
+            filters.endDate = e.target.value;
+            renderTaskTable();
+        });
+    }
     
-    priorityFilter.addEventListener('change', (e) => {
-        filters.priority = e.target.value;
-        renderTaskTable();
+    // 状态多选筛选
+    const statusBtn = document.getElementById('filter-status-btn');
+    const statusDropdown = document.getElementById('filter-status-dropdown');
+    
+    if (statusBtn && statusDropdown) {
+        // 阻止原生下拉框打开
+        statusBtn.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+        });
+        
+        // 点击按钮显示/隐藏自定义下拉
+        statusBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (statusDropdown.style.display === 'none') {
+                const rect = statusBtn.getBoundingClientRect();
+                statusDropdown.style.top = (rect.bottom + 2) + 'px';
+                statusDropdown.style.left = rect.left + 'px';
+                statusDropdown.style.width = rect.width + 'px';
+                statusDropdown.style.display = 'block';
+            } else {
+                statusDropdown.style.display = 'none';
+            }
+        });
+        
+        // checkbox 变化时重新渲染
+        statusDropdown.addEventListener('change', () => {
+            const checked = Array.from(statusDropdown.querySelectorAll('input:checked')).map(cb => cb.value);
+            filters.status = checked;
+            renderTaskTable();
+            updateStatusBtnText();
+            updateSelectedLabels();
+        });
+    }
+    
+    // 点击其他地方关闭状态下拉
+    document.addEventListener('click', (e) => {
+        const dropdown = document.getElementById('filter-status-dropdown');
+        if (dropdown && !e.target.closest('#filter-status')) {
+            dropdown.style.display = 'none';
+        }
     });
-    
-    statusFilter.addEventListener('change', (e) => {
-        filters.status = e.target.value;
-        renderTaskTable();
-    });
-    
-    startDateFilter.addEventListener('change', (e) => {
-        filters.startDate = e.target.value;
-        renderTaskTable();
-    });
-    
-    endDateFilter.addEventListener('change', (e) => {
-        filters.endDate = e.target.value;
-        renderTaskTable();
+}
+
+// 更新状态按钮文字
+function updateStatusBtnText() {
+    const btn = document.getElementById('filter-status-btn');
+    const checked = filters.status;
+    let text;
+    if (checked.length === 0) {
+        text = '状态';
+        btn.style.color = '#333';
+    } else if (checked.length <= 2) {
+        text = checked.join('/');
+        btn.style.color = '#4CAF50';
+    } else {
+        text = `已选${checked.length}项`;
+        btn.style.color = '#4CAF50';
+    }
+    // 用 innerHTML 替换 option，强制刷新显示
+    btn.innerHTML = `<option>${text}</option>`;
+}
+
+// 更新下拉菜单中标签的选中样式
+function updateSelectedLabels() {
+    const dropdown = document.getElementById('filter-status-dropdown');
+    const labels = dropdown.querySelectorAll('label');
+    labels.forEach(label => {
+        const checkbox = label.querySelector('input[type="checkbox"]');
+        if (checkbox.checked) {
+            label.classList.add('selected');
+        } else {
+            label.classList.remove('selected');
+        }
     });
 }
 
 // 检查任务是否符合筛选条件
 function matchesFilters(task) {
     if (filters.priority && task.priority !== filters.priority) return false;
-    if (filters.status && task.status !== filters.status) return false;
+    
+    // 状态多选：数组为空表示不过滤，否则任务状态必须在选中列表中
+    if (filters.status.length > 0 && !filters.status.includes(task.status)) return false;
     
     if (filters.startDate) {
         const taskStart = task.start_date || '';

@@ -9,6 +9,15 @@ from io import BytesIO
 app = Flask(__name__)
 app.config.from_object(Config)
 
+# 禁止缓存静态文件（开发阶段）
+@app.after_request
+def add_no_cache_headers(response):
+    if request.path.startswith('/static/'):
+        response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '0'
+    return response
+
 db.init_app(app)
 with app.app_context():
     db.create_all()
@@ -48,6 +57,10 @@ def create_todo():
     history = StatusHistory(todo_id=todo.id, old_status=None, new_status='待开始', remark='创建任务')
     db.session.add(history)
     db.session.commit()
+    
+    # 如果是子任务，更新父任务日期
+    if todo.parent_id:
+        update_parent_dates(todo.id)
     
     return jsonify(todo.to_dict()), 201
 

@@ -145,7 +145,7 @@ header h1 {
 .task-list-container {
     border: 1px solid #e0e0e0;
     border-radius: 6px;
-    overflow: hidden;
+    overflow: visible;
     position: relative;
 }
 
@@ -163,7 +163,7 @@ header h1 {
     padding: 10px 8px;
     border-right: 1px solid #e0e0e0;
     position: relative;
-    overflow: hidden;
+    overflow: visible;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
@@ -292,6 +292,40 @@ header h1 {
 
 .auto-date::-webkit-calendar-picker-indicator {
     display: none;
+}
+
+/* 状态多选下拉 - 和优先级 filter-select 样式完全一致 */
+.multi-filter {
+    position: relative;
+    display: inline-block;
+}
+
+.multi-filter-dropdown {
+    position: fixed;
+    min-width: 100px;
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 3px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    z-index: 9999;
+    padding: 2px 0;
+}
+
+.multi-filter-dropdown label {
+    display: flex;
+    align-items: center;
+    padding: 4px 8px;
+    font-size: 11px;
+    cursor: pointer;
+}
+
+.multi-filter-dropdown label:hover {
+    background: #f5f5f5;
+}
+
+.multi-filter-dropdown input[type="checkbox"] {
+    margin-right: 6px;
+    flex-shrink: 0;
 }
 
 /* 排序指示器 */
@@ -616,39 +650,6 @@ header h1 {
     outline: none !important;
     resize: vertical !important;
     min-height: 40px !important;
-}
-
-.status-badge {
-    display: inline-block;
-    padding: 2px 8px;
-    border-radius: 3px;
-    font-size: 12px;
-    font-weight: 500;
-}
-
-.status-待开始 {
-    background: #e0e0e0;
-    color: #666;
-}
-
-.status-进行中 {
-    background: #d4edda;
-    color: #155724;
-}
-
-.status-已完成 {
-    background: #cce5ff;
-    color: #004085;
-}
-
-.status-已取消 {
-    background: #f8d7da;
-    color: #721c24;
-}
-
-.status-暂挂 {
-    background: #fff3cd;
-    color: #856404;
 }
 
 /* 逾期任务样式 */
