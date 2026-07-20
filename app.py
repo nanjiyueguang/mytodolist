@@ -80,7 +80,7 @@ def update_parent_dates(todo_id):
     if not parent:
         return
     
-    # 获取所有子任务的日期
+    # 获取所有子任务的日期（只考虑子任务，不考虑父任务自身）
     children = parent.children.all()
     all_starts = []
     all_ends = []
@@ -91,13 +91,7 @@ def update_parent_dates(todo_id):
         if child.end_date:
             all_ends.append(child.end_date)
     
-    # 也考虑父任务自身的日期
-    if parent.start_date:
-        all_starts.append(parent.start_date)
-    if parent.end_date:
-        all_ends.append(parent.end_date)
-    
-    # 更新父任务日期
+    # 更新父任务日期（完全由子任务决定）
     if all_starts:
         parent.start_date = min(all_starts)
     if all_ends:
