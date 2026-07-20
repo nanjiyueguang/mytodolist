@@ -496,14 +496,15 @@ def export_todos():
     start_date = request.args.get('start_date')
     end_date = request.args.get('end_date')
     
-    query = Todo.query
+    # 构建查询（支持日期筛选，不选则全量）
+    query = Todo.query.filter_by(parent_id=None)
     if start_date:
         query = query.filter(Todo.created_at >= datetime.strptime(start_date, '%Y-%m-%d'))
     if end_date:
         query = query.filter(Todo.created_at <= datetime.strptime(end_date, '%Y-%m-%d') + timedelta(days=1))
     
     # 获取顶层任务（树状）
-    top_todos = Todo.query.filter_by(parent_id=None).order_by(Todo.created_at.asc()).all()
+    top_todos = query.order_by(Todo.created_at.asc()).all()
     
     # 构建扁平化层级列表: [(level, task_code, parent_code, todo), ...]
     flat_list = []
