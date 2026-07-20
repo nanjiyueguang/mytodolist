@@ -652,6 +652,12 @@ header h1 {
     min-height: 40px !important;
 }
 
+/* 已完成任务删除线 */
+.task-row.task-completed .task-name-content {
+    text-decoration: line-through;
+    color: #999;
+}
+
 /* 逾期任务样式 */
 .overdue-task {
     background: #fff5f5 !important;

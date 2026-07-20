@@ -118,7 +118,7 @@ function renderTaskTable() {
             : `<div class="task-desc-inline task-desc-empty" title="点击添加描述" data-task-id="${task.id}" data-action="edit-desc-inline">+描述</div>`;
 
         html += `
-            <div class="task-row level-${task.level} ${task.is_overdue ? 'overdue-task' : ''} ${isCollapsed ? 'collapsed' : ''}" data-task-id="${task.id}">
+            <div class="task-row level-${task.level} ${task.is_overdue ? 'overdue-task' : ''} ${isCollapsed ? 'collapsed' : ''} ${task.status === '已完成' ? 'task-completed' : ''}" data-task-id="${task.id}">
                 <div class="col-task-code">${task.taskCode}</div>
                 <div class="col-task-name task-name-cell level-${task.level}" style="padding-left: ${8 + indent}px">
                     ${toggleIcon}
