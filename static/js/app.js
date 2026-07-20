@@ -153,10 +153,11 @@ function renderTaskTable() {
                     </select>
                 </div>
                 <div class="col-date">
-                    <input type="date" class="row-date-input" data-task-id="${task.id}" data-field="start_date" data-action="edit-date" value="${task.start_date || ''}">
+                    ${task.is_auto_date ? `<span class="auto-date-marker" title="自动根据子任务计算">🔄</span>` : ''}
+                    <input type="date" class="row-date-input ${task.is_auto_date ? 'auto-date' : ''}" data-task-id="${task.id}" data-field="start_date" data-action="edit-date" value="${task.start_date || ''}" ${task.is_auto_date ? 'readonly' : ''}>
                 </div>
                 <div class="col-date">
-                    <input type="date" class="row-date-input" data-task-id="${task.id}" data-field="end_date" data-action="edit-date" value="${task.end_date || ''}">
+                    <input type="date" class="row-date-input ${task.is_auto_date ? 'auto-date' : ''}" data-task-id="${task.id}" data-field="end_date" data-action="edit-date" value="${task.end_date || ''}" ${task.is_auto_date ? 'readonly' : ''}>
                 </div>
                 <div class="col-duration">${task.duration || 0}</div>
                 <div class="col-progress">${progressBar}</div>

@@ -57,6 +57,46 @@ def get_todo(todo_id):
     todo = Todo.query.get_or_404(todo_id)
     return jsonify(todo.to_dict())
 
+def update_parent_dates(todo_id):
+    """递归向上更新父任务的日期（取子任务的最小开始和最大结束）"""
+    todo = Todo.query.get(todo_id)
+    if not todo or not todo.parent_id:
+        return
+    
+    parent = Todo.query.get(todo.parent_id)
+    if not parent:
+        return
+    
+    # 获取所有子任务的日期
+    children = parent.children.all()
+    all_starts = []
+    all_ends = []
+    
+    for child in children:
+        if child.start_date:
+            all_starts.append(child.start_date)
+        if child.end_date:
+            all_ends.append(child.end_date)
+    
+    # 也考虑父任务自身的日期
+    if parent.start_date:
+        all_starts.append(parent.start_date)
+    if parent.end_date:
+        all_ends.append(parent.end_date)
+    
+    # 更新父任务日期
+    if all_starts:
+        parent.start_date = min(all_starts)
+    if all_ends:
+        parent.end_date = max(all_ends)
+    
+    parent.updated_at = datetime.utcnow()
+    db.session.commit()
+    
+    # 递归向上
+    update_parent_dates(parent.id)
+
+
 @app.route('/api/todos/<int:todo_id>', methods=['PUT'])
 def update_todo(todo_id):
     """更新任务"""
@@ -80,6 +120,10 @@ def update_todo(todo_id):
     
     todo.updated_at = datetime.utcnow()
     db.session.commit()
+    
+    # 递归更新父任务日期
+    update_parent_dates(todo_id)
+    
     return jsonify(todo.to_dict())
 
 @app.route('/api/todos/<int:todo_id>/status', methods=['PUT'])
@@ -526,4 +570,4 @@ def export_todos():
     )
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5050, debug=True)
+    app.run(host='0.0.0.0', port=5050, debug=False)

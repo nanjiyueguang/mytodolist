@@ -30,14 +30,40 @@ class Todo(db.Model):
     steps = db.relationship('TodoStep', backref='todo', lazy='dynamic',
                            order_by='TodoStep.order.asc()')
     
+    def get_auto_dates(self):
+        """根据子任务递归计算汇总日期
+        返回 (auto_start, auto_end, is_auto)
+        is_auto=True 表示日期由子任务决定
+        """
+        children_list = self.children.all()
+        if not children_list:
+            # 叶子任务：使用自身日期
+            return self.start_date, self.end_date, False
+        
+        # 收集所有子任务的日期（递归）
+        all_starts = []
+        all_ends = []
+        for child in children_list:
+            cs, ce, _ = child.get_auto_dates()
+            if cs:
+                all_starts.append(cs)
+            if ce:
+                all_ends.append(ce)
+        
+        # 也考虑自身手动设置的日期
+        if self.start_date:
+            all_starts.append(self.start_date)
+        if self.end_date:
+            all_ends.append(self.end_date)
+        
+        auto_start = min(all_starts) if all_starts else None
+        auto_end = max(all_ends) if all_ends else None
+        
+        return auto_start, auto_end, True
+
     def to_dict(self, include_children=True):
         # 计算是否逾期
         today = datetime.utcnow().date()
-        is_overdue = (
-            self.end_date is not None
-            and self.end_date < today
-            and self.status not in ('已完成', '已取消')
-        )
         
         # 先获取步骤统计（无论是否有子任务）
         step_stats = self.get_step_stats()
@@ -55,6 +81,15 @@ class Todo(db.Model):
             if step_stats['total'] > 0:
                 calculated_progress = step_stats['percent']
         
+        # 计算显示日期：有子任务时自动汇总
+        display_start, display_end, is_auto_date = self.get_auto_dates()
+        
+        is_overdue = (
+            display_end is not None
+            and display_end < today
+            and self.status not in ('已完成', '已取消')
+        )
+        
         data = {
             'id': self.id,
             'parent_id': self.parent_id,
@@ -63,8 +98,9 @@ class Todo(db.Model):
             'status': self.status,
             'priority': self.priority,
             'progress': calculated_progress,
-            'start_date': self.start_date.strftime('%Y-%m-%d') if self.start_date else None,
-            'end_date': self.end_date.strftime('%Y-%m-%d') if self.end_date else None,
+            'start_date': display_start.strftime('%Y-%m-%d') if display_start else None,
+            'end_date': display_end.strftime('%Y-%m-%d') if display_end else None,
+            'is_auto_date': is_auto_date,
             'is_overdue': is_overdue,
             'created_at': self.created_at.strftime('%Y-%m-%d %H:%M:%S'),
             'updated_at': self.updated_at.strftime('%Y-%m-%d %H:%M:%S'),

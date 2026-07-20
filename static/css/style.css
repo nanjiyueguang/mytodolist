@@ -276,6 +276,24 @@ header h1 {
     vertical-align: middle;
 }
 
+/* 自动日期样式 */
+.auto-date-marker {
+    display: inline-block;
+    font-size: 10px;
+    margin-right: 2px;
+    vertical-align: middle;
+}
+
+.auto-date {
+    background-color: #f0f8ff !important;
+    color: #666 !important;
+    cursor: not-allowed !important;
+}
+
+.auto-date::-webkit-calendar-picker-indicator {
+    display: none;
+}
+
 /* 排序指示器 */
 .progress-bar-container {
     position: relative;
