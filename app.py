@@ -492,7 +492,7 @@ def import_todos():
 
 @app.route('/api/todos/export', methods=['GET'])
 def export_todos():
-    """导出todo列表到Excel"""
+    """导出todo列表到Excel（按任务层级展示）"""
     start_date = request.args.get('start_date')
     end_date = request.args.get('end_date')
     
@@ -502,7 +502,23 @@ def export_todos():
     if end_date:
         query = query.filter(Todo.created_at <= datetime.strptime(end_date, '%Y-%m-%d') + timedelta(days=1))
     
-    todos = query.order_by(Todo.created_at.desc()).all()
+    # 获取顶层任务（树状）
+    top_todos = Todo.query.filter_by(parent_id=None).order_by(Todo.created_at.asc()).all()
+    
+    # 构建扁平化层级列表: [(level, task_code, parent_code, todo), ...]
+    flat_list = []
+    
+    def flatten_tree(todos, parent_code='', level=0):
+        index = 1
+        for todo in todos:
+            task_code = f"{parent_code}.{index}" if parent_code else str(index)
+            flat_list.append((level, task_code, parent_code, todo))
+            children = todo.children.order_by(Todo.created_at.asc()).all()
+            if children:
+                flatten_tree(children, task_code, level + 1)
+            index += 1
+    
+    flatten_tree(top_todos)
     
     wb = openpyxl.Workbook()
     ws = wb.active
@@ -511,43 +527,74 @@ def export_todos():
     header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
     header_font = Font(bold=True, color="FFFFFF")
     
-    headers = ['ID', '标题', '描述', '优先级', '当前状态', '进度(%)', '开始日期', '结束日期', '步骤(完成/总数)', '创建时间', '更新时间']
+    headers = ['任务编号', '标题', '描述', '优先级', '当前状态', '进度(%)', '开始日期', '结束日期', '步骤(完成/总数)', '父任务编号', '创建时间', '更新时间']
     for col, header in enumerate(headers, 1):
         cell = ws.cell(row=1, column=col, value=header)
         cell.fill = header_fill
         cell.font = header_font
         cell.alignment = Alignment(horizontal='center', vertical='center')
     
-    for row, todo in enumerate(todos, 2):
-        step_stats = todo.get_step_stats()
-        ws.cell(row=row, column=1, value=todo.id)
-        ws.cell(row=row, column=2, value=todo.title)
-        ws.cell(row=row, column=3, value=todo.description or '')
-        ws.cell(row=row, column=4, value=todo.priority)
-        ws.cell(row=row, column=5, value=todo.status)
-        ws.cell(row=row, column=6, value=todo.progress)
-        ws.cell(row=row, column=7, value=todo.start_date.strftime('%Y-%m-%d') if todo.start_date else '')
-        ws.cell(row=row, column=8, value=todo.end_date.strftime('%Y-%m-%d') if todo.end_date else '')
-        ws.cell(row=row, column=9, value=f"{step_stats['completed']}/{step_stats['total']}")
-        ws.cell(row=row, column=10, value=todo.created_at.strftime('%Y-%m-%d %H:%M:%S'))
-        ws.cell(row=row, column=11, value=todo.updated_at.strftime('%Y-%m-%d %H:%M:%S'))
+    # 层级颜色
+    level_fills = {
+        0: PatternFill(start_color="E2EFDA", end_color="E2EFDA", fill_type="solid"),
+        1: PatternFill(start_color="FFFFFF", end_color="FFFFFF", fill_type="solid"),
+        2: PatternFill(start_color="F2F2F2", end_color="F2F2F2", fill_type="solid"),
+    }
     
-    for col_letter, width in [('A',8),('B',30),('C',40),('D',10),('E',12),('F',10),('G',12),('H',12),('I',14),('J',20),('K',20)]:
+    for row_idx, (level, task_code, parent_code, todo) in enumerate(flat_list, 2):
+        step_stats = todo.get_step_stats()
+        
+        # 标题带缩进
+        indent = '    ' * level
+        title_text = f"{indent}{todo.title}"
+        if level > 0:
+            title_text = f"{'  ' * level}└ {todo.title}"
+        
+        ws.cell(row=row_idx, column=1, value=task_code)
+        ws.cell(row=row_idx, column=2, value=title_text)
+        ws.cell(row=row_idx, column=3, value=todo.description or '')
+        ws.cell(row=row_idx, column=4, value=todo.priority)
+        ws.cell(row=row_idx, column=5, value=todo.status)
+        ws.cell(row=row_idx, column=6, value=todo.progress)
+        ws.cell(row=row_idx, column=7, value=todo.start_date.strftime('%Y-%m-%d') if todo.start_date else '')
+        ws.cell(row=row_idx, column=8, value=todo.end_date.strftime('%Y-%m-%d') if todo.end_date else '')
+        ws.cell(row=row_idx, column=9, value=f"{step_stats['completed']}/{step_stats['total']}")
+        ws.cell(row=row_idx, column=10, value=parent_code if parent_code else '')
+        ws.cell(row=row_idx, column=11, value=todo.created_at.strftime('%Y-%m-%d %H:%M:%S'))
+        ws.cell(row=row_idx, column=12, value=todo.updated_at.strftime('%Y-%m-%d %H:%M:%S'))
+        
+        # 层级背景色
+        fill = level_fills.get(level, level_fills[2])
+        for col in range(1, 13):
+            ws.cell(row=row_idx, column=col).fill = fill
+        
+        # 顶层任务加粗
+        if level == 0:
+            bold_font = Font(bold=True)
+            ws.cell(row=row_idx, column=1).font = bold_font
+            ws.cell(row=row_idx, column=2).font = bold_font
+    
+    for col_letter, width in [('A',12),('B',40),('C',40),('D',10),('E',12),('F',10),('G',12),('H',12),('I',14),('J',14),('K',20),('L',20)]:
         ws.column_dimensions[col_letter].width = width
     
     # 状态历史工作表
     ws_history = wb.create_sheet("状态变更历史")
-    history_headers = ['Todo ID', '标题', '原状态', '新状态', '变更时间', '备注']
+    history_headers = ['任务编号', '标题', '原状态', '新状态', '变更时间', '备注']
     for col, header in enumerate(history_headers, 1):
         cell = ws_history.cell(row=1, column=col, value=header)
         cell.fill = header_fill
         cell.font = header_font
         cell.alignment = Alignment(horizontal='center', vertical='center')
     
+    # 构建 id -> task_code 映射
+    id_to_code = {}
+    for level, task_code, parent_code, todo in flat_list:
+        id_to_code[todo.id] = task_code
+    
     row = 2
-    for todo in todos:
+    for level, task_code, parent_code, todo in flat_list:
         for history in todo.status_history.all():
-            ws_history.cell(row=row, column=1, value=todo.id)
+            ws_history.cell(row=row, column=1, value=task_code)
             ws_history.cell(row=row, column=2, value=todo.title)
             ws_history.cell(row=row, column=3, value=history.old_status or '')
             ws_history.cell(row=row, column=4, value=history.new_status)
@@ -555,7 +602,7 @@ def export_todos():
             ws_history.cell(row=row, column=6, value=history.remark or '')
             row += 1
     
-    for col_letter, width in [('A',10),('B',30),('C',12),('D',12),('E',20),('F',30)]:
+    for col_letter, width in [('A',12),('B',30),('C',12),('D',12),('E',20),('F',30)]:
         ws_history.column_dimensions[col_letter].width = width
     
     output = BytesIO()
