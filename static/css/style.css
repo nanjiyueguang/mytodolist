@@ -280,25 +280,33 @@ header h1 {
 }
 
 .col-date {
-    width: 160px;
-    min-width: 160px;
+    width: 240px;
+    min-width: 240px;
     text-align: center;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    overflow: hidden;
 }
 
 .col-date .filter-label {
-    display: block;
-    font-size: 10px;
+    display: inline;
+    font-size: 12px;
     color: #666;
-    margin-bottom: 4px;
+    margin-bottom: 0;
     font-weight: 500;
+    white-space: nowrap;
+    flex-shrink: 0;
 }
 
 .col-date .filter-date {
-    width: 100%;
+    width: 120px;
+    min-width: 120px;
+    flex: none;
     padding: 4px 6px;
     border: 1px solid #ddd;
     border-radius: 3px;
-    font-size: 11px;
+    font-size: 12px;
     background: white;
     cursor: pointer;
 }
@@ -322,7 +330,7 @@ header h1 {
     padding: 4px 6px;
     border: 1px solid #ddd;
     border-radius: 3px;
-    font-size: 11px;
+    font-size: 12px;
     background: white;
     cursor: pointer;
 }
@@ -340,7 +348,7 @@ header h1 {
 
 .filter-label {
     display: inline-block;
-    font-size: 10px;
+    font-size: 12px;
     color: #666;
     margin-right: 4px;
     font-weight: 500;
@@ -386,7 +394,7 @@ header h1 {
     display: flex;
     align-items: center;
     padding: 4px 8px;
-    font-size: 11px;
+    font-size: 12px;
     cursor: pointer;
 }
 
@@ -553,6 +561,7 @@ header h1 {
     font-size: 12px;
     background: transparent;
     width: 100%;
+    max-width: 120px;
     transition: border-color 0.2s;
 }
 
