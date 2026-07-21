@@ -18,8 +18,32 @@ document.addEventListener('DOMContentLoaded', () => {
     bindFilters();
 });
 
+// 默认折叠所有任务
+function collapseAllTasks() {
+    allTasks.forEach(task => {
+        if (task.children && task.children.length > 0) {
+            collapsedTasks.add(task.id);
+        }
+    });
+}
+
 function bindEvents() {
-    document.getElementById('btn-create').addEventListener('click', createTodo);
+    // 创建按钮 → 打开弹窗
+    document.getElementById('btn-create').addEventListener('click', openCreateModal);
+    
+    // 弹窗关闭/取消
+    document.getElementById('btn-modal-close').addEventListener('click', closeCreateModal);
+    document.getElementById('btn-modal-cancel').addEventListener('click', closeCreateModal);
+    
+    // 弹窗确认创建
+    document.getElementById('btn-modal-confirm').addEventListener('click', () => {
+        createTodo();
+    });
+    
+    // 点击遮罩关闭
+    document.getElementById('create-modal').addEventListener('click', (e) => {
+        if (e.target.id === 'create-modal') closeCreateModal();
+    });
     
     document.getElementById('btn-import').addEventListener('click', () => {
         document.getElementById('import-panel').style.display = 'block';
@@ -45,6 +69,11 @@ async function loadTodos() {
         const response = await fetch('/api/todos');
         const todos = await response.json();
         allTasks = flattenTasks(todos);
+        // 首次加载默认折叠所有有子任务的任务
+        if (!window._loadedOnce) {
+            collapseAllTasks();
+            window._loadedOnce = true;
+        }
         renderTaskTable();
     } catch (error) {
         console.error('加载失败:', error);
@@ -294,9 +323,15 @@ function renderTaskTable() {
     initColumnResizer();
 }
 
-// Esc 键取消选中
+// Esc 键取消选中 / 关闭弹窗
 document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
+        // 关闭创建弹窗
+        if (document.getElementById('create-modal').style.display === 'flex') {
+            closeCreateModal();
+            return;
+        }
+        // 取消行选中
         document.querySelectorAll('.task-row.selected').forEach(r => r.classList.remove('selected'));
     }
 });
@@ -632,6 +667,23 @@ function getProgressColor(progress) {
 }
 
 
+// 打开创建弹窗
+function openCreateModal() {
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('todo-title').value = '';
+    document.getElementById('todo-description').value = '';
+    document.getElementById('todo-priority').value = '中';
+    document.getElementById('todo-start-date').value = today;
+    document.getElementById('todo-end-date').value = today;
+    document.getElementById('create-modal').style.display = 'flex';
+    setTimeout(() => document.getElementById('todo-title').focus(), 100);
+}
+
+// 关闭创建弹窗
+function closeCreateModal() {
+    document.getElementById('create-modal').style.display = 'none';
+}
+
 // 创建任务
 async function createTodo() {
     const title = document.getElementById('todo-title').value.trim();
@@ -646,10 +698,7 @@ async function createTodo() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ title, description, priority, start_date: startDate, end_date: endDate })
         });
-        document.getElementById('todo-title').value = '';
-        document.getElementById('todo-description').value = '';
-        document.getElementById('todo-start-date').value = '';
-        document.getElementById('todo-end-date').value = '';
+        closeCreateModal();
         loadTodos();
     } catch (error) {
         alert('创建任务失败');

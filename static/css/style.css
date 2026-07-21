@@ -89,56 +89,127 @@ header h1 {
     gap: 10px;
 }
 
-/* 单行表单 */
+/* 单行表单（已废弃，改用弹窗） */
 .todo-form-inline {
-    display: flex;
-    gap: 10px;
-    align-items: center;
-    background: #f8f9fa;
-    padding: 12px 15px;
-    border-radius: 6px;
-    margin-bottom: 20px;
-    flex-wrap: nowrap;
+    display: none;
 }
 
-.form-control-inline {
-    padding: 8px 10px;
+/* 创建任务弹窗 */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.modal-dialog {
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    width: 500px;
+    max-width: 90vw;
+    max-height: 90vh;
+    overflow: auto;
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 20px;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+.modal-header h3 {
+    margin: 0;
+    font-size: 18px;
+    color: #333;
+}
+
+.modal-close {
+    background: none;
+    border: none;
+    font-size: 24px;
+    color: #999;
+    cursor: pointer;
+    padding: 0;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+}
+
+.modal-close:hover {
+    background: #f0f0f0;
+    color: #333;
+}
+
+.modal-body {
+    padding: 20px;
+}
+
+.modal-form-group {
+    margin-bottom: 16px;
+}
+
+.modal-form-group label {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 14px;
+    font-weight: 500;
+    color: #333;
+}
+
+.required {
+    color: #f44336;
+}
+
+.modal-input,
+.modal-select,
+.modal-textarea {
+    width: 100%;
+    padding: 8px 12px;
     border: 1px solid #ddd;
     border-radius: 4px;
-    font-size: 13px;
+    font-size: 14px;
     transition: border-color 0.3s;
-    height: 36px;
 }
 
-.form-control-inline:focus {
+.modal-input:focus,
+.modal-select:focus,
+.modal-textarea:focus {
     outline: none;
     border-color: #4CAF50;
 }
 
-.form-title {
-    flex: 2;
-    min-width: 150px;
+.modal-textarea {
+    resize: vertical;
+    font-family: inherit;
 }
 
-.form-priority {
-    width: 100px;
-    min-width: 100px;
+.modal-form-row {
+    display: flex;
+    gap: 12px;
 }
 
-.form-date {
-    width: 130px;
-    min-width: 130px;
-}
-
-.form-desc {
+.modal-form-row .modal-form-group {
     flex: 1;
-    min-width: 120px;
 }
 
-.btn-create {
-    height: 36px;
-    white-space: nowrap;
-    padding: 8px 16px;
+.modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    padding: 16px 20px;
+    border-top: 1px solid #e0e0e0;
 }
 
 /* 任务列表容器 */
