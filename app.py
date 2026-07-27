@@ -255,7 +255,14 @@ def update_todo(todo_id):
     todo.title = data.get('title', todo.title)
     todo.description = data.get('description', todo.description)
     todo.priority = data.get('priority', todo.priority)
-    # 移除手动设置进度，进度由步骤自动计算
+    
+    # 如果进度被设置为100%，自动标记为已完成
+    if 'progress' in data and data['progress'] == 100:
+        if todo.status not in ('已完成', '已取消'):
+            todo.status = '已完成'
+            # 触发父任务自动完成检查
+            if todo.parent_id:
+                _auto_complete_parent(todo.parent_id)
     
     if data.get('start_date'):
         todo.start_date = datetime.strptime(data['start_date'], '%Y-%m-%d').date()
@@ -299,7 +306,45 @@ def update_status(todo_id):
     history = StatusHistory(todo_id=todo.id, old_status=old_status, new_status=new_status, remark=remark)
     db.session.add(history)
     db.session.commit()
+    
+    # 检查是否需要自动完成父任务
+    if new_status == '已完成' and todo.parent_id:
+        _auto_complete_parent(todo.parent_id)
+    
     return jsonify(todo.to_dict())
+
+
+def _auto_complete_parent(parent_id):
+    """检查父任务的所有子任务是否都完成，如果是则自动标记父任务为已完成"""
+    parent = Todo.query.get(parent_id)
+    if not parent:
+        return
+    
+    # 检查所有子任务是否都已完成或已取消
+    children = parent.children.all()
+    if not children:
+        return
+    
+    all_completed = all(child.status in ('已完成', '已取消') for child in children)
+    
+    if all_completed and parent.status not in ('已完成', '已取消'):
+        old_status = parent.status
+        parent.status = '已完成'
+        parent.progress = 100
+        parent.updated_at = datetime.utcnow()
+        
+        history = StatusHistory(
+            todo_id=parent.id, 
+            old_status=old_status, 
+            new_status='已完成', 
+            remark='所有子任务已完成，自动标记'
+        )
+        db.session.add(history)
+        db.session.commit()
+        
+        # 递归检查上级父任务
+        if parent.parent_id:
+            _auto_complete_parent(parent.parent_id)
 
 @app.route('/api/todos/<int:todo_id>', methods=['DELETE'])
 def delete_todo(todo_id):
@@ -355,9 +400,6 @@ def update_step(step_id):
     
     db.session.commit()
     
-    # 自动更新父任务的进度
-    _auto_update_progress(step.todo_id)
-    
     return jsonify(step.to_dict())
 
 @app.route('/api/steps/<int:step_id>', methods=['DELETE'])
@@ -371,13 +413,8 @@ def delete_step(step_id):
     return jsonify({'message': '删除成功'})
 
 def _auto_update_progress(todo_id):
-    """根据步骤完成情况自动更新任务进度"""
-    todo = Todo.query.get(todo_id)
-    if todo:
-        stats = todo.get_step_stats()
-        if stats['total'] > 0:
-            todo.progress = stats['percent']
-            db.session.commit()
+    """步骤不影响任务进度，此函数保留但不再修改 progress"""
+    pass
 
 # ============ 导入导出 API ============
 

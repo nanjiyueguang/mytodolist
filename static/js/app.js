@@ -137,13 +137,21 @@ function renderTaskTable() {
         const hasChildren = task.children && task.children.length > 0;
         const indent = task.level * 20;
         const overdueMark = task.is_overdue ? '<span class="overdue-badge">逾期</span>' : '';
-        const progress = task.progress || 0;
-        const progressBar = `
-            <div class="progress-bar-container">
-                <div class="progress-bar" style="width: ${progress}%; background: ${getProgressColor(progress)};"></div>
-                <span class="progress-text">${progress}%</span>
-            </div>
-        `;
+        
+        // 方案A：有子任务显示完成数/总数，叶子任务不显示进度条
+        let progressDisplay = '';
+        if (hasChildren) {
+            const stats = task.children_stats || { total: 0, completed: 0 };
+            const total = stats.total || 0;
+            const completed = stats.completed || 0;
+            const percent = total > 0 ? Math.round(completed / total * 100) : 0;
+            progressDisplay = `
+                <div class="progress-bar-container">
+                    <div class="progress-bar" style="width: ${percent}%; background: ${getProgressColor(percent)};"></div>
+                    <span class="progress-text">${completed}/${total}</span>
+                </div>
+            `;
+        }
         
         const isCollapsed = collapsedTasks.has(task.id);
         const toggleIcon = hasChildren
@@ -198,7 +206,7 @@ function renderTaskTable() {
                     <input type="date" class="row-date-input ${task.is_auto_date ? 'auto-date' : ''}" data-task-id="${task.id}" data-field="end_date" data-action="edit-date" value="${task.end_date || ''}" ${task.is_auto_date ? 'readonly' : ''}>
                 </div>
                 <div class="col-duration">${task.duration || 0}</div>
-                <div class="col-progress">${progressBar}</div>
+                <div class="col-progress">${progressDisplay}</div>
             </div>
         `;
     });
