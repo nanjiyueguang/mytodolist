@@ -1,6 +1,8 @@
 // 全局状态
 let allTasks = []; // 扁平化后的任务列表
 let collapsedTasks = new Set(); // 折叠的任务ID（隐藏子任务）
+let archivedTasks = []; // 已归档任务列表
+let currentAttachmentTaskId = null; // 当前附件弹窗对应的任务ID
 let filters = {
     priority: '',
     status: [],  // 改为数组支持多选
@@ -14,8 +16,10 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('todo-end-date').value = today;
     
     loadTodos();
+    loadArchivedTodos();
     bindEvents();
     bindFilters();
+    bindAttachmentEvents();
 });
 
 // 默认折叠所有任务
@@ -62,6 +66,9 @@ function bindEvents() {
     document.getElementById('btn-cancel-export').addEventListener('click', () => {
         document.getElementById('export-panel').style.display = 'none';
     });
+    
+    // 历史任务展开/折叠
+    document.getElementById('btn-toggle-archived').addEventListener('click', toggleArchivedSection);
 }
 
 async function loadTodos() {
@@ -162,6 +169,8 @@ function renderTaskTable() {
                     <div class="task-row-actions">
                         <button class="btn-add-todo-inline" data-task-id="${task.id}" data-action="add-todo-inline" title="添加待办">+todo</button>
                         <button class="btn-add-child-inline" data-task-id="${task.id}" data-action="add-child-inline" title="增加子任务">+子任务</button>
+                        <button class="btn-attachment-inline" data-task-id="${task.id}" data-action="manage-attachment" title="附件管理">📎${task.attachments && task.attachments.length > 0 ? `<span class="attachment-count">${task.attachments.length}</span>` : ''}</button>
+                        ${task.level === 0 ? `<button class="btn-archive-inline" data-task-id="${task.id}" data-action="archive-task" title="归档">📦归档</button>` : ''}
                         <button class="btn-delete-inline" data-task-id="${task.id}" data-action="delete-task-inline" title="删除任务">×</button>
                     </div>
                 </div>
@@ -273,6 +282,26 @@ function renderTaskTable() {
                 e.preventDefault();
                 const taskId = parseInt(deleteBtn.getAttribute('data-task-id'));
                 deleteTask(taskId);
+                return;
+            }
+            
+            // 归档按钮
+            const archiveBtn = e.target.closest('[data-action="archive-task"]');
+            if (archiveBtn) {
+                e.stopPropagation();
+                e.preventDefault();
+                const taskId = parseInt(archiveBtn.getAttribute('data-task-id'));
+                archiveTask(taskId);
+                return;
+            }
+            
+            // 附件管理按钮
+            const attachmentBtn = e.target.closest('[data-action="manage-attachment"]');
+            if (attachmentBtn) {
+                e.stopPropagation();
+                e.preventDefault();
+                const taskId = parseInt(attachmentBtn.getAttribute('data-task-id'));
+                openAttachmentModal(taskId);
                 return;
             }
         });
@@ -627,6 +656,298 @@ async function deleteTask(taskId) {
         console.error('删除失败:', error);
         alert('删除任务失败');
     }
+}
+
+// 归档任务
+async function archiveTask(taskId) {
+    if (!confirm('确定归档此任务及其所有子任务？\n归档后仅可查看和修改描述。')) return;
+    try {
+        const response = await fetch(`/api/todos/${taskId}/archive`, { method: 'POST' });
+        const result = await response.json();
+        if (response.ok) {
+            alert('归档成功');
+            loadTodos();
+            loadArchivedTodos();
+        } else {
+            alert(result.error || '归档失败');
+        }
+    } catch (error) {
+        console.error('归档失败:', error);
+        alert('归档失败');
+    }
+}
+
+// 还原任务
+async function restoreTask(taskId) {
+    if (!confirm('确定还原此任务？\n还原后可继续编辑。')) return;
+    try {
+        const response = await fetch(`/api/todos/${taskId}/restore`, { method: 'POST' });
+        const result = await response.json();
+        if (response.ok) {
+            alert('还原成功');
+            loadTodos();
+            loadArchivedTodos();
+        } else {
+            alert(result.error || '还原失败');
+        }
+    } catch (error) {
+        console.error('还原失败:', error);
+        alert('还原失败');
+    }
+}
+
+// 加载已归档任务
+async function loadArchivedTodos() {
+    try {
+        const response = await fetch('/api/todos/archived');
+        archivedTasks = await response.json();
+        renderArchivedTasks();
+    } catch (error) {
+        console.error('加载归档任务失败:', error);
+    }
+}
+
+// 渲染已归档任务
+function renderArchivedTasks() {
+    const container = document.getElementById('archived-task-list');
+    if (!container) return;
+    
+    if (archivedTasks.length === 0) {
+        container.innerHTML = '<div class="empty-state" style="color:#999;padding:20px;text-align:center;">暂无已归档任务</div>';
+        return;
+    }
+    
+    let html = '';
+    archivedTasks.forEach(task => {
+        const childrenHtml = renderArchivedChildren(task.children || []);
+        html += `
+            <div class="archived-task-item" data-task-id="${task.id}">
+                <div class="archived-task-info">
+                    <div class="archived-task-title">${escapeHtml(task.title)}</div>
+                    <div class="archived-task-meta">
+                        归档时间：${task.archived_at || ''}
+                        ${task.children && task.children.length > 0 ? ` | 子任务：${task.children.length}个` : ''}
+                    </div>
+                    ${childrenHtml ? `<div class="archived-children-list">${childrenHtml}</div>` : ''}
+                </div>
+                <div class="archived-task-actions">
+                    <button class="btn btn-secondary" data-task-id="${task.id}" data-action="restore-task">🔄 还原</button>
+                    <button class="btn btn-secondary" data-task-id="${task.id}" data-action="view-archived-desc">📝 查看描述</button>
+                </div>
+            </div>
+        `;
+    });
+    
+    container.innerHTML = html;
+    
+    // 绑定事件
+    container.querySelectorAll('[data-action="restore-task"]').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const taskId = parseInt(btn.getAttribute('data-task-id'));
+            restoreTask(taskId);
+        });
+    });
+    
+    container.querySelectorAll('[data-action="view-archived-desc"]').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const taskId = parseInt(btn.getAttribute('data-task-id'));
+            viewArchivedDescription(taskId);
+        });
+    });
+}
+
+// 渲染已归档子任务
+function renderArchivedChildren(children) {
+    if (!children || children.length === 0) return '';
+    let html = '';
+    children.forEach(child => {
+        html += `<div>└ ${escapeHtml(child.title)} (${child.status})</div>`;
+        if (child.children && child.children.length > 0) {
+            html += renderArchivedChildren(child.children);
+        }
+    });
+    return html;
+}
+
+// 查看已归档任务描述
+function viewArchivedDescription(taskId) {
+    const task = archivedTasks.find(t => t.id === taskId);
+    if (!task) return;
+    
+    const newDesc = prompt('查看/修改描述（仅描述可编辑）：', task.description || '');
+    if (newDesc !== null && newDesc !== task.description) {
+        fetch(`/api/todos/${taskId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ description: newDesc })
+        }).then(() => {
+            alert('描述已更新');
+            loadArchivedTodos();
+        }).catch(err => {
+            console.error('更新描述失败:', err);
+            alert('更新描述失败');
+        });
+    }
+}
+
+// 切换历史任务区域
+function toggleArchivedSection() {
+    const list = document.getElementById('archived-task-list');
+    const btn = document.getElementById('btn-toggle-archived');
+    if (list.style.display === 'none') {
+        list.style.display = 'block';
+        btn.textContent = '收起';
+    } else {
+        list.style.display = 'none';
+        btn.textContent = '展开';
+    }
+}
+
+// ========== 附件管理 ==========
+
+// 绑定附件弹窗事件
+function bindAttachmentEvents() {
+    const modal = document.getElementById('attachment-modal');
+    const closeBtn = document.getElementById('btn-attachment-close');
+    const uploadBtn = document.getElementById('btn-upload-attachment');
+    const fileInput = document.getElementById('attachment-file-input');
+    
+    closeBtn.addEventListener('click', closeAttachmentModal);
+    
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) closeAttachmentModal();
+    });
+    
+    uploadBtn.addEventListener('click', () => fileInput.click());
+    
+    fileInput.addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (!file || !currentAttachmentTaskId) return;
+        
+        const formData = new FormData();
+        formData.append('file', file);
+        
+        try {
+            const response = await fetch(`/api/todos/${currentAttachmentTaskId}/attachments`, {
+                method: 'POST',
+                body: formData
+            });
+            const result = await response.json();
+            if (response.ok) {
+                alert('上传成功');
+                loadAttachments(currentAttachmentTaskId);
+                loadTodos(); // 刷新主列表以更新附件数量
+            } else {
+                alert(result.error || '上传失败');
+            }
+        } catch (error) {
+            console.error('上传失败:', error);
+            alert('上传失败');
+        }
+        
+        fileInput.value = '';
+    });
+}
+
+// 打开附件弹窗
+function openAttachmentModal(taskId) {
+    currentAttachmentTaskId = taskId;
+    const modal = document.getElementById('attachment-modal');
+    modal.style.display = 'flex';
+    loadAttachments(taskId);
+}
+
+// 关闭附件弹窗
+function closeAttachmentModal() {
+    document.getElementById('attachment-modal').style.display = 'none';
+    currentAttachmentTaskId = null;
+}
+
+// 加载附件列表
+async function loadAttachments(taskId) {
+    try {
+        const response = await fetch(`/api/todos/${taskId}/attachments`);
+        const attachments = await response.json();
+        renderAttachments(attachments);
+    } catch (error) {
+        console.error('加载附件失败:', error);
+    }
+}
+
+// 渲染附件列表
+function renderAttachments(attachments) {
+    const container = document.getElementById('attachment-list');
+    if (!container) return;
+    
+    if (attachments.length === 0) {
+        container.innerHTML = '<div class="empty-state" style="color:#999;padding:20px;text-align:center;">暂无附件</div>';
+        return;
+    }
+    
+    let html = '';
+    attachments.forEach(att => {
+        const sizeStr = formatFileSize(att.file_size);
+        html += `
+            <div class="attachment-item" data-attachment-id="${att.id}">
+                <div class="attachment-info">
+                    <div class="attachment-name" title="${escapeHtml(att.filename)}">${escapeHtml(att.filename)}</div>
+                    <div class="attachment-meta">${sizeStr} | ${att.uploaded_at || ''}</div>
+                </div>
+                <div class="attachment-actions">
+                    <button class="btn btn-secondary" data-attachment-id="${att.id}" data-action="download-attachment">📥 下载</button>
+                    <button class="btn btn-secondary" data-attachment-id="${att.id}" data-action="delete-attachment">🗑️ 删除</button>
+                </div>
+            </div>
+        `;
+    });
+    
+    container.innerHTML = html;
+    
+    // 绑定事件
+    container.querySelectorAll('[data-action="download-attachment"]').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const attId = parseInt(btn.getAttribute('data-attachment-id'));
+            window.open(`/api/attachments/${attId}/download`, '_blank');
+        });
+    });
+    
+    container.querySelectorAll('[data-action="delete-attachment"]').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            const attId = parseInt(btn.getAttribute('data-attachment-id'));
+            if (!confirm('确定删除此附件？')) return;
+            
+            try {
+                const response = await fetch(`/api/attachments/${attId}`, { method: 'DELETE' });
+                if (response.ok) {
+                    alert('删除成功');
+                    loadAttachments(currentAttachmentTaskId);
+                    loadTodos();
+                } else {
+                    alert('删除失败');
+                }
+            } catch (error) {
+                console.error('删除失败:', error);
+                alert('删除失败');
+            }
+        });
+    });
+}
+
+// 格式化文件大小
+function formatFileSize(bytes) {
+    if (!bytes || bytes === 0) return '0 B';
+    const units = ['B', 'KB', 'MB', 'GB'];
+    let i = 0;
+    let size = bytes;
+    while (size >= 1024 && i < units.length - 1) {
+        size /= 1024;
+        i++;
+    }
+    return size.toFixed(2) + ' ' + units[i];
 }
 
 // 保存字段（标题、描述、优先级、日期）

@@ -13,3 +13,7 @@ class Config:
     
     # 状态定义
     STATUS_OPTIONS = ['待开始', '进行中', '暂挂', '已完成', '已取消']
+    
+    # 附件配置
+    ATTACHMENT_DIR = os.path.join(BASE_DIR, 'attachments')
+    MAX_ATTACHMENT_SIZE = 50 * 1024 * 1024  # 50MB

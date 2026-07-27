@@ -1,5 +1,6 @@
 from datetime import datetime
 from flask_sqlalchemy import SQLAlchemy
+import os
 
 db = SQLAlchemy()
 
@@ -19,6 +20,10 @@ class Todo(db.Model):
     start_date = db.Column(db.Date)
     end_date = db.Column(db.Date)
     
+    # 归档字段
+    is_archived = db.Column(db.Boolean, default=False)
+    archived_at = db.Column(db.DateTime)
+    
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
@@ -29,6 +34,8 @@ class Todo(db.Model):
                                      lazy='dynamic', order_by='StatusHistory.changed_at.desc()')
     steps = db.relationship('TodoStep', backref='todo', lazy='dynamic',
                            order_by='TodoStep.order.asc()')
+    attachments = db.relationship('Attachment', backref='todo', lazy='dynamic',
+                                 order_by='Attachment.uploaded_at.desc()')
     
     def get_auto_dates(self):
         """根据子任务递归计算汇总日期
@@ -102,9 +109,12 @@ class Todo(db.Model):
             'end_date': display_end.strftime('%Y-%m-%d') if display_end else None,
             'is_auto_date': is_auto_date,
             'is_overdue': is_overdue,
+            'is_archived': self.is_archived,
+            'archived_at': self.archived_at.strftime('%Y-%m-%d %H:%M:%S') if self.archived_at else None,
             'created_at': self.created_at.strftime('%Y-%m-%d %H:%M:%S'),
             'updated_at': self.updated_at.strftime('%Y-%m-%d %H:%M:%S'),
             'steps': [s.to_dict() for s in self.steps.all()],
+            'attachments': [a.to_dict() for a in self.attachments.all()],
             'children': [c.to_dict(include_children=True) for c in children_list] if include_children else [],
             'step_stats': step_stats,
             'children_stats': self.get_children_stats()
@@ -174,4 +184,27 @@ class StatusHistory(db.Model):
             'new_status': self.new_status,
             'changed_at': self.changed_at.strftime('%Y-%m-%d %H:%M:%S'),
             'remark': self.remark
+        }
+
+
+class Attachment(db.Model):
+    """附件模型"""
+    __tablename__ = 'attachments'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    todo_id = db.Column(db.Integer, db.ForeignKey('todos.id'), nullable=False)
+    filename = db.Column(db.String(255), nullable=False)  # 原始文件名
+    stored_name = db.Column(db.String(255), nullable=False)  # 存储文件名
+    file_size = db.Column(db.Integer)  # 文件大小(字节)
+    mime_type = db.Column(db.String(100))  # MIME类型
+    uploaded_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'todo_id': self.todo_id,
+            'filename': self.filename,
+            'file_size': self.file_size,
+            'mime_type': self.mime_type,
+            'uploaded_at': self.uploaded_at.strftime('%Y-%m-%d %H:%M:%S')
         }

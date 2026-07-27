@@ -132,6 +132,33 @@
             </div>
             <div id="task-table-body" class="table-body"></div>
         </div>
+
+        <!-- 历史任务区域 -->
+        <div class="archived-section">
+            <div class="archived-header">
+                <h2>📦 历史任务</h2>
+                <button id="btn-toggle-archived" class="btn btn-secondary">展开</button>
+            </div>
+            <div id="archived-task-list" class="archived-task-list" style="display:none;"></div>
+        </div>
+    </div>
+
+    <!-- 附件管理弹窗 -->
+    <div id="attachment-modal" class="modal-overlay" style="display:none;">
+        <div class="modal-dialog">
+            <div class="modal-header">
+                <h3>📎 附件管理</h3>
+                <button class="modal-close" id="btn-attachment-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="attachment-upload-area">
+                    <input type="file" id="attachment-file-input" style="display:none;">
+                    <button id="btn-upload-attachment" class="btn btn-primary">📤 选择文件上传</button>
+                    <span class="attachment-hint">（最大 50MB）</span>
+                </div>
+                <div id="attachment-list" class="attachment-list"></div>
+            </div>
+        </div>
     </div>
 
     <script src="{{ url_for('static', filename='js/app.js') }}"></script>

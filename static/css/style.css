@@ -777,3 +777,193 @@ header h1 {
         gap: 10px;
     }
 }
+
+/* ========== 历史任务区域 ========== */
+.archived-section {
+    margin-top: 30px;
+    border-top: 2px solid #e0e0e0;
+    padding-top: 20px;
+}
+
+.archived-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+}
+
+.archived-header h2 {
+    color: #666;
+    font-size: 18px;
+    margin: 0;
+}
+
+.archived-task-list {
+    border: 1px solid #e0e0e0;
+    border-radius: 6px;
+    background: #fafafa;
+    padding: 15px;
+}
+
+.archived-task-item {
+    background: white;
+    border: 1px solid #e8e8e8;
+    border-radius: 4px;
+    padding: 12px 15px;
+    margin-bottom: 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.archived-task-item:last-child {
+    margin-bottom: 0;
+}
+
+.archived-task-info {
+    flex: 1;
+}
+
+.archived-task-title {
+    font-size: 14px;
+    font-weight: 500;
+    color: #333;
+    margin-bottom: 4px;
+}
+
+.archived-task-meta {
+    font-size: 12px;
+    color: #999;
+}
+
+.archived-task-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.archived-task-actions button {
+    padding: 4px 10px;
+    font-size: 12px;
+}
+
+.archived-children-list {
+    margin-top: 8px;
+    padding-left: 20px;
+    font-size: 12px;
+    color: #666;
+}
+
+.archived-children-list div {
+    padding: 2px 0;
+}
+
+/* ========== 附件弹窗 ========== */
+.attachment-upload-area {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 15px;
+    padding-bottom: 15px;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+.attachment-hint {
+    font-size: 12px;
+    color: #999;
+}
+
+.attachment-list {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.attachment-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 12px;
+    background: #f8f9fa;
+    border: 1px solid #e8e8e8;
+    border-radius: 4px;
+    margin-bottom: 8px;
+}
+
+.attachment-item:last-child {
+    margin-bottom: 0;
+}
+
+.attachment-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.attachment-name {
+    font-size: 13px;
+    color: #333;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.attachment-meta {
+    font-size: 11px;
+    color: #999;
+    margin-top: 2px;
+}
+
+.attachment-actions {
+    display: flex;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+.attachment-actions button {
+    padding: 4px 8px;
+    font-size: 12px;
+}
+
+/* 任务行上的附件按钮 */
+.btn-attachment-inline {
+    padding: 2px 8px;
+    font-size: 11px;
+    color: #607D8B;
+    background: white;
+    border: 1px solid #607D8B;
+    border-radius: 3px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-attachment-inline:hover {
+    background: #607D8B;
+    color: white;
+}
+
+/* 归档按钮 */
+.btn-archive-inline {
+    padding: 2px 8px;
+    font-size: 11px;
+    color: #FF9800;
+    background: white;
+    border: 1px solid #FF9800;
+    border-radius: 3px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-archive-inline:hover {
+    background: #FF9800;
+    color: white;
+}
+
+/* 附件数量标记 */
+.attachment-count {
+    display: inline-block;
+    background: #607D8B;
+    color: white;
+    font-size: 10px;
+    padding: 1px 4px;
+    border-radius: 8px;
+    margin-left: 4px;
+}

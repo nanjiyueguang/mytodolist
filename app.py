@@ -1,10 +1,13 @@
-from flask import Flask, render_template, request, jsonify, send_file
-from models import db, Todo, TodoStep, StatusHistory
+from flask import Flask, render_template, request, jsonify, send_file, send_from_directory
+from models import db, Todo, TodoStep, StatusHistory, Attachment
 from config import Config
 from datetime import datetime, timedelta
 import openpyxl
 from openpyxl.styles import Alignment, Font, PatternFill
 from io import BytesIO
+import os
+import uuid
+import shutil
 
 app = Flask(__name__)
 app.config.from_object(Config)
@@ -22,6 +25,9 @@ db.init_app(app)
 with app.app_context():
     db.create_all()
 
+# 确保附件目录存在
+os.makedirs(Config.ATTACHMENT_DIR, exist_ok=True)
+
 # ============ 页面路由 ============
 
 @app.route('/')
@@ -33,7 +39,13 @@ def index():
 @app.route('/api/todos', methods=['GET'])
 def get_todos():
     """获取顶层任务列表（树状）"""
-    todos = Todo.query.filter_by(parent_id=None).order_by(Todo.created_at.desc()).all()
+    todos = Todo.query.filter_by(parent_id=None, is_archived=False).order_by(Todo.created_at.desc()).all()
+    return jsonify([t.to_dict() for t in todos])
+
+@app.route('/api/todos/archived', methods=['GET'])
+def get_archived_todos():
+    """获取已归档的顶层任务列表"""
+    todos = Todo.query.filter_by(parent_id=None, is_archived=True).order_by(Todo.archived_at.desc()).all()
     return jsonify([t.to_dict() for t in todos])
 
 @app.route('/api/todos', methods=['POST'])
@@ -103,6 +115,136 @@ def update_parent_dates(todo_id):
     # 递归向上
     update_parent_dates(parent.id)
 
+
+def _check_all_completed(todo):
+    """递归检查任务及所有子任务是否都已完成"""
+    if todo.status not in ('已完成', '已取消'):
+        return False
+    for child in todo.children.all():
+        if not _check_all_completed(child):
+            return False
+    return True
+
+@app.route('/api/todos/<int:todo_id>/archive', methods=['POST'])
+def archive_todo(todo_id):
+    """归档任务（需主任务及所有子任务都已完成）"""
+    todo = Todo.query.get_or_404(todo_id)
+    
+    # 只允许归档顶层任务
+    if todo.parent_id is not None:
+        return jsonify({'error': '只能归档顶层主任务'}), 400
+    
+    # 检查是否所有任务都已完成
+    if not _check_all_completed(todo):
+        return jsonify({'error': '主任务及所有子任务必须为已完成或已取消状态才能归档'}), 400
+    
+    # 递归归档主任务及所有子任务
+    def archive_recursive(t):
+        t.is_archived = True
+        t.archived_at = datetime.utcnow()
+        for child in t.children.all():
+            archive_recursive(child)
+    
+    archive_recursive(todo)
+    db.session.commit()
+    
+    return jsonify({'message': '归档成功'})
+
+@app.route('/api/todos/<int:todo_id>/restore', methods=['POST'])
+def restore_todo(todo_id):
+    """还原已归档的任务"""
+    todo = Todo.query.get_or_404(todo_id)
+    
+    if todo.parent_id is not None:
+        return jsonify({'error': '只能还原顶层主任务'}), 400
+    
+    # 递归还原
+    def restore_recursive(t):
+        t.is_archived = False
+        t.archived_at = None
+        for child in t.children.all():
+            restore_recursive(child)
+    
+    restore_recursive(todo)
+    db.session.commit()
+    
+    return jsonify({'message': '还原成功'})
+
+# ============ 附件 API ============
+
+@app.route('/api/todos/<int:todo_id>/attachments', methods=['POST'])
+def upload_attachment(todo_id):
+    """上传附件"""
+    todo = Todo.query.get_or_404(todo_id)
+    
+    if 'file' not in request.files:
+        return jsonify({'error': '未找到文件'}), 400
+    
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({'error': '文件名为空'}), 400
+    
+    # 检查文件大小
+    file.seek(0, 2)
+    file_size = file.tell()
+    file.seek(0)
+    
+    if file_size > Config.MAX_ATTACHMENT_SIZE:
+        return jsonify({'error': f'文件大小超过限制（最大{Config.MAX_ATTACHMENT_SIZE // 1024 // 1024}MB）'}), 400
+    
+    # 生成存储文件名
+    ext = os.path.splitext(file.filename)[1]
+    stored_name = f"{uuid.uuid4().hex}{ext}"
+    file_path = os.path.join(Config.ATTACHMENT_DIR, stored_name)
+    
+    # 保存文件
+    file.save(file_path)
+    
+    # 创建附件记录
+    attachment = Attachment(
+        todo_id=todo_id,
+        filename=file.filename,
+        stored_name=stored_name,
+        file_size=file_size,
+        mime_type=file.content_type or 'application/octet-stream'
+    )
+    db.session.add(attachment)
+    db.session.commit()
+    
+    return jsonify(attachment.to_dict()), 201
+
+@app.route('/api/todos/<int:todo_id>/attachments', methods=['GET'])
+def get_attachments(todo_id):
+    """获取任务的附件列表"""
+    todo = Todo.query.get_or_404(todo_id)
+    attachments = todo.attachments.all()
+    return jsonify([a.to_dict() for a in attachments])
+
+@app.route('/api/attachments/<int:attachment_id>/download', methods=['GET'])
+def download_attachment(attachment_id):
+    """下载附件"""
+    attachment = Attachment.query.get_or_404(attachment_id)
+    return send_from_directory(
+        Config.ATTACHMENT_DIR,
+        attachment.stored_name,
+        as_attachment=True,
+        download_name=attachment.filename
+    )
+
+@app.route('/api/attachments/<int:attachment_id>', methods=['DELETE'])
+def delete_attachment(attachment_id):
+    """删除附件"""
+    attachment = Attachment.query.get_or_404(attachment_id)
+    
+    # 删除文件
+    file_path = os.path.join(Config.ATTACHMENT_DIR, attachment.stored_name)
+    if os.path.exists(file_path):
+        os.remove(file_path)
+    
+    db.session.delete(attachment)
+    db.session.commit()
+    
+    return jsonify({'message': '删除成功'})
 
 @app.route('/api/todos/<int:todo_id>', methods=['PUT'])
 def update_todo(todo_id):
