@@ -24,12 +24,15 @@ class Todo(db.Model):
     is_archived = db.Column(db.Boolean, default=False)
     archived_at = db.Column(db.DateTime)
     
+    # 排序字段
+    sort_order = db.Column(db.Integer, default=0, index=True)
+    
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
     # 关联
     children = db.relationship('Todo', backref=db.backref('parent', remote_side=[id]), 
-                               lazy='dynamic')
+                               lazy='dynamic', order_by='Todo.sort_order.asc()')
     status_history = db.relationship('StatusHistory', backref='todo', 
                                      lazy='dynamic', order_by='StatusHistory.changed_at.desc()')
     steps = db.relationship('TodoStep', backref='todo', lazy='dynamic',
@@ -107,6 +110,7 @@ class Todo(db.Model):
             'is_overdue': is_overdue,
             'is_archived': self.is_archived,
             'archived_at': self.archived_at.strftime('%Y-%m-%d %H:%M:%S') if self.archived_at else None,
+            'sort_order': self.sort_order,
             'created_at': self.created_at.strftime('%Y-%m-%d %H:%M:%S'),
             'updated_at': self.updated_at.strftime('%Y-%m-%d %H:%M:%S'),
             'steps': [s.to_dict() for s in self.steps.all()],

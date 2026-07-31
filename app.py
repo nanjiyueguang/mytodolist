@@ -39,7 +39,7 @@ def index():
 @app.route('/api/todos', methods=['GET'])
 def get_todos():
     """获取顶层任务列表（树状）"""
-    todos = Todo.query.filter_by(parent_id=None, is_archived=False).order_by(Todo.created_at.desc()).all()
+    todos = Todo.query.filter_by(parent_id=None, is_archived=False).order_by(Todo.sort_order.asc(), Todo.created_at.desc()).all()
     return jsonify([t.to_dict() for t in todos])
 
 @app.route('/api/todos/archived', methods=['GET'])
@@ -55,11 +55,18 @@ def create_todo():
     if not data.get('title'):
         return jsonify({'error': '标题不能为空'}), 400
     
+    # 计算排序值：同级别中最大值 + 1
+    if data.get('parent_id'):
+        max_order = db.session.query(db.func.max(Todo.sort_order)).filter_by(parent_id=data['parent_id']).scalar() or 0
+    else:
+        max_order = db.session.query(db.func.max(Todo.sort_order)).filter_by(parent_id=None).scalar() or 0
+    
     todo = Todo(
         title=data['title'],
         description=data.get('description', ''),
         priority=data.get('priority', '中'),
         parent_id=data.get('parent_id'),
+        sort_order=max_order + 1,
         start_date=datetime.strptime(data['start_date'], '%Y-%m-%d').date() if data.get('start_date') else None,
         end_date=datetime.strptime(data['end_date'], '%Y-%m-%d').date() if data.get('end_date') else None,
     )
@@ -281,6 +288,32 @@ def update_todo(todo_id):
     update_parent_dates(todo_id)
     
     return jsonify(todo.to_dict())
+
+@app.route('/api/todos/reorder', methods=['POST'])
+def reorder_todos():
+    """批量更新任务排序
+    请求体: {"orders": [{"id": 1, "sort_order": 0}, {"id": 2, "sort_order": 1}, ...]}
+    """
+    data = request.json
+    orders = data.get('orders', [])
+    
+    if not orders:
+        return jsonify({'error': '排序数据为空'}), 400
+    
+    for item in orders:
+        todo_id = item.get('id')
+        sort_order = item.get('sort_order')
+        
+        if todo_id is None or sort_order is None:
+            continue
+        
+        todo = Todo.query.get(todo_id)
+        if todo:
+            todo.sort_order = sort_order
+            todo.updated_at = datetime.utcnow()
+    
+    db.session.commit()
+    return jsonify({'message': '排序更新成功'})
 
 @app.route('/api/todos/<int:todo_id>/status', methods=['PUT'])
 def update_status(todo_id):

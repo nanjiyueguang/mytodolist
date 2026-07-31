@@ -88,6 +88,142 @@ async function loadTodos() {
 }
 
 // 扁平化任务树，生成任务编码
+// 拖拽排序功能
+let draggedTaskId = null;
+let draggedElement = null;
+
+function initDragAndDrop() {
+    const tbody = document.getElementById('task-table-body');
+    const rows = tbody.querySelectorAll('.task-row');
+    
+    rows.forEach(row => {
+        row.addEventListener('dragstart', handleDragStart);
+        row.addEventListener('dragend', handleDragEnd);
+        row.addEventListener('dragover', handleDragOver);
+        row.addEventListener('drop', handleDrop);
+    });
+}
+
+function handleDragStart(e) {
+    draggedElement = this;
+    draggedTaskId = parseInt(this.dataset.taskId);
+    this.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', draggedTaskId);
+}
+
+function handleDragEnd(e) {
+    this.classList.remove('dragging');
+    document.querySelectorAll('.task-row').forEach(row => {
+        row.classList.remove('drag-over', 'drag-over-top', 'drag-over-bottom');
+    });
+    draggedTaskId = null;
+    draggedElement = null;
+}
+
+function handleDragOver(e) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    
+    const row = this;
+    if (row === draggedElement) return;
+    
+    // 检查是否是同级任务（parent_id 相同）
+    const targetTaskId = parseInt(row.dataset.taskId);
+    const targetTask = allTasks.find(t => t.id === targetTaskId);
+    const draggedTask = allTasks.find(t => t.id === draggedTaskId);
+    
+    if (!targetTask || !draggedTask) return;
+    
+    // 只允许同级拖拽
+    const draggedParentId = draggedTask.parent_id || null;
+    const targetParentId = targetTask.parent_id || null;
+    
+    if (draggedParentId !== targetParentId) {
+        row.classList.remove('drag-over', 'drag-over-top', 'drag-over-bottom');
+        return;
+    }
+    
+    // 判断插入位置
+    const rect = row.getBoundingClientRect();
+    const midpoint = rect.top + rect.height / 2;
+    
+    row.classList.remove('drag-over-top', 'drag-over-bottom');
+    if (e.clientY < midpoint) {
+        row.classList.add('drag-over-top');
+    } else {
+        row.classList.add('drag-over-bottom');
+    }
+}
+
+async function handleDrop(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    const targetRow = this;
+    const targetTaskId = parseInt(targetRow.dataset.taskId);
+    
+    if (targetTaskId === draggedTaskId) return;
+    
+    const targetTask = allTasks.find(t => t.id === targetTaskId);
+    const draggedTask = allTasks.find(t => t.id === draggedTaskId);
+    
+    if (!targetTask || !draggedTask) return;
+    
+    // 只允许同级拖拽
+    const draggedParentId = draggedTask.parent_id || null;
+    const targetParentId = targetTask.parent_id || null;
+    
+    if (draggedParentId !== targetParentId) return;
+    
+    // 判断插入位置
+    const rect = targetRow.getBoundingClientRect();
+    const midpoint = rect.top + rect.height / 2;
+    const insertBefore = e.clientY < midpoint;
+    
+    // 获取同级任务列表
+    const siblings = allTasks.filter(t => (t.parent_id || null) === draggedParentId);
+    
+    // 从列表中移除被拖拽的任务
+    const draggedIndex = siblings.findIndex(t => t.id === draggedTaskId);
+    if (draggedIndex === -1) return;
+    
+    const [draggedItem] = siblings.splice(draggedIndex, 1);
+    
+    // 找到目标位置并插入
+    let targetIndex = siblings.findIndex(t => t.id === targetTaskId);
+    if (targetIndex === -1) return;
+    
+    if (!insertBefore) {
+        targetIndex += 1;
+    }
+    
+    siblings.splice(targetIndex, 0, draggedItem);
+    
+    // 更新排序值
+    const orders = siblings.map((task, index) => ({
+        id: task.id,
+        sort_order: index
+    }));
+    
+    try {
+        const response = await fetch('/api/todos/reorder', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ orders })
+        });
+        
+        if (response.ok) {
+            await loadTodos();
+        } else {
+            alert('排序更新失败');
+        }
+    } catch (error) {
+        console.error('排序更新错误:', error);
+        alert('排序更新失败');
+    }
+}
+
 function flattenTasks(todos, parentCode = '', level = 0, parentIds = []) {
     let result = [];
     let index = 1;
@@ -162,7 +298,8 @@ function renderTaskTable() {
             : `<div class="task-desc-inline task-desc-empty" title="点击添加描述" data-task-id="${task.id}" data-action="edit-desc-inline">+描述</div>`;
 
         html += `
-            <div class="task-row level-${task.level} ${task.is_overdue ? 'overdue-task' : ''} ${isCollapsed ? 'collapsed' : ''} ${task.status === '已完成' ? 'task-completed' : ''}" data-task-id="${task.id}">
+            <div class="task-row level-${task.level} ${task.is_overdue ? 'overdue-task' : ''} ${isCollapsed ? 'collapsed' : ''} ${task.status === '已完成' ? 'task-completed' : ''}" data-task-id="${task.id}" draggable="true">
+                <div class="col-drag-handle" title="拖拽排序">⠿</div>
                 <div class="col-task-code">${task.taskCode}</div>
                 <div class="col-task-name task-name-cell level-${task.level}" style="padding-left: ${8 + indent}px">
                     ${toggleIcon}
@@ -212,6 +349,9 @@ function renderTaskTable() {
     });
     
     tbody.innerHTML = html;
+    
+    // 拖拽排序功能
+    initDragAndDrop();
     
     // 统一事件委托（只绑定一次）
     if (!tbody._clickBound) {
