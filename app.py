@@ -260,9 +260,9 @@ def update_todo(todo_id):
     if 'progress' in data and data['progress'] == 100:
         if todo.status not in ('已完成', '已取消'):
             todo.status = '已完成'
-            # 触发父任务自动完成检查
+            # 触发父任务自动状态更新
             if todo.parent_id:
-                _auto_complete_parent(todo.parent_id)
+                _auto_update_parent_status(todo.parent_id)
     
     if data.get('start_date'):
         todo.start_date = datetime.strptime(data['start_date'], '%Y-%m-%d').date()
@@ -307,44 +307,63 @@ def update_status(todo_id):
     db.session.add(history)
     db.session.commit()
     
-    # 检查是否需要自动完成父任务
-    if new_status == '已完成' and todo.parent_id:
-        _auto_complete_parent(todo.parent_id)
+    # 子任务状态变更时，自动更新父任务状态
+    if todo.parent_id:
+        _auto_update_parent_status(todo.parent_id)
     
     return jsonify(todo.to_dict())
 
 
-def _auto_complete_parent(parent_id):
-    """检查父任务的所有子任务是否都完成，如果是则自动标记父任务为已完成"""
+def _auto_update_parent_status(parent_id):
+    """根据子任务状态自动更新父任务状态：
+    - 任一子任务变为'进行中' → 父任务若为'待开始'则自动变为'进行中'
+    - 所有子任务完成/取消 → 父任务自动变为'已完成'
+    """
     parent = Todo.query.get(parent_id)
     if not parent:
         return
     
-    # 检查所有子任务是否都已完成或已取消
     children = parent.children.all()
     if not children:
         return
     
-    all_completed = all(child.status in ('已完成', '已取消') for child in children)
+    # 规则1：任一子任务进行中 → 父任务从待开始变为进行中
+    any_in_progress = any(c.status == '进行中' for c in children)
+    if any_in_progress and parent.status == '待开始':
+        old_status = parent.status
+        parent.status = '进行中'
+        parent.updated_at = datetime.utcnow()
+        history = StatusHistory(
+            todo_id=parent.id,
+            old_status=old_status,
+            new_status='进行中',
+            remark='子任务已开始，自动标记为进行中'
+        )
+        db.session.add(history)
+        db.session.commit()
     
+    # 规则2：所有子任务完成/取消 → 父任务自动完成
+    all_completed = all(c.status in ('已完成', '已取消') for c in children)
     if all_completed and parent.status not in ('已完成', '已取消'):
         old_status = parent.status
         parent.status = '已完成'
         parent.progress = 100
         parent.updated_at = datetime.utcnow()
-        
         history = StatusHistory(
-            todo_id=parent.id, 
-            old_status=old_status, 
-            new_status='已完成', 
+            todo_id=parent.id,
+            old_status=old_status,
+            new_status='已完成',
             remark='所有子任务已完成，自动标记'
         )
         db.session.add(history)
         db.session.commit()
-        
-        # 递归检查上级父任务
-        if parent.parent_id:
-            _auto_complete_parent(parent.parent_id)
+    
+    # 递归向上（父任务的父任务）
+    if parent.parent_id:
+        _auto_update_parent_status(parent.parent_id)
+
+
+
 
 @app.route('/api/todos/<int:todo_id>', methods=['DELETE'])
 def delete_todo(todo_id):
