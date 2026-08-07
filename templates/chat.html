@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>智能周报助手</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/chat.css') }}">
+</head>
+<body>
+    <div class="chat-container">
+        <!-- 侧边栏 -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h2>🤖 智能周报</h2>
+                <button id="btn-new-chat" class="btn btn-primary btn-sm">+ 新对话</button>
+            </div>
+            
+            <!-- 会话列表 -->
+            <div class="sidebar-section">
+                <h3>对话历史</h3>
+                <div id="session-list" class="session-list"></div>
+            </div>
+            
+            <!-- 快捷操作 -->
+            <div class="sidebar-section">
+                <h3>快捷操作</h3>
+                <button class="btn btn-secondary btn-block" id="btn-gen-weekly">📊 生成本周周报</button>
+                <button class="btn btn-secondary btn-block" id="btn-gen-summary">📈 任务统计汇总</button>
+            </div>
+            
+            <!-- 管理按钮 -->
+            <div class="sidebar-section">
+                <button class="btn btn-outline btn-block" id="btn-manage-config">⚙️ 模型配置</button>
+                <button class="btn btn-outline btn-block" id="btn-manage-template">📋 周报模板</button>
+                <a href="/" class="btn btn-outline btn-block">📋 返回任务列表</a>
+            </div>
+        </aside>
+        
+        <!-- 主聊天区 -->
+        <main class="chat-main">
+            <div class="chat-header">
+                <h3 id="chat-title">智能周报助手</h3>
+                <div class="chat-actions">
+                    <select id="template-selector" class="select-sm">
+                        <option value="">选择周报模板</option>
+                    </select>
+                    <button id="btn-clear-chat" class="btn btn-sm btn-danger">清空对话</button>
+                </div>
+            </div>
+            
+            <div id="chat-messages" class="chat-messages">
+                <div class="welcome-message">
+                    <h2>👋 欢迎使用智能周报助手</h2>
+                    <p>我可以帮你：</p>
+                    <ul>
+                        <li>📊 根据任务记录生成周报</li>
+                        <li>📈 统计任务完成情况</li>
+                        <li>📋 按模板格式化输出</li>
+                    </ul>
+                    <p class="hint">💡 提示：先在左侧配置模型API，然后开始对话吧！</p>
+                </div>
+            </div>
+            
+            <div class="chat-input-area">
+                <div class="input-toolbar">
+                    <button id="btn-insert-weekly-data" class="btn btn-sm" title="插入本周任务数据">📊 插入任务数据</button>
+                    <span class="toolbar-hint">自动获取任务记录供AI分析</span>
+                </div>
+                <textarea id="chat-input" placeholder="输入消息... (Shift+Enter换行)" rows="3"></textarea>
+                <div class="input-actions">
+                    <span id="input-hint" class="input-hint"></span>
+                    <button id="btn-send" class="btn btn-primary">发送</button>
+                </div>
+            </div>
+        </main>
+    </div>
+    
+    <!-- 模型配置弹窗 -->
+    <div id="config-modal" class="modal-overlay" style="display:none;">
+        <div class="modal-dialog">
+            <div class="modal-header">
+                <h3>⚙️ 模型配置</h3>
+                <button class="modal-close" data-modal="config-modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="config-list" class="config-list"></div>
+                <button id="btn-add-config" class="btn btn-primary btn-block">+ 添加配置</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 配置编辑弹窗 -->
+    <div id="config-edit-modal" class="modal-overlay" style="display:none;">
+        <div class="modal-dialog">
+            <div class="modal-header">
+                <h3 id="config-edit-title">添加配置</h3>
+                <button class="modal-close" data-modal="config-edit-modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="config-edit-id">
+                <div class="form-group">
+                    <label>配置名称 *</label>
+                    <input type="text" id="config-name" placeholder="如：通义千问、GPT-4" class="form-input">
+                </div>
+                <div class="form-group">
+                    <label>API URL *</label>
+                    <input type="text" id="config-url" placeholder="如：https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions" class="form-input">
+                    <small class="form-hint">支持OpenAI兼容格式，如通义千问、DeepSeek、本地Ollama等</small>
+                </div>
+                <div class="form-group">
+                    <label>API Key *</label>
+                    <input type="password" id="config-key" placeholder="sk-..." class="form-input">
+                </div>
+                <div class="form-group">
+                    <label>模型名称</label>
+                    <input type="text" id="config-model" placeholder="如：qwen-plus、gpt-4" class="form-input">
+                </div>
+                <div class="form-group">
+                    <label>系统提示词</label>
+                    <textarea id="config-prompt" rows="4" class="form-textarea"></textarea>
+                </div>
+                <div class="form-group">
+                    <label><input type="checkbox" id="config-default"> 设为默认配置</label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" data-modal="config-edit-modal">取消</button>
+                <button id="btn-save-config" class="btn btn-primary">保存</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 模板管理弹窗 -->
+    <div id="template-modal" class="modal-overlay" style="display:none;">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-header">
+                <h3>📋 周报模板管理</h3>
+                <button class="modal-close" data-modal="template-modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="template-list" class="template-list"></div>
+                <button id="btn-add-template" class="btn btn-primary btn-block">+ 添加模板</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 模板编辑弹窗 -->
+    <div id="template-edit-modal" class="modal-overlay" style="display:none;">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-header">
+                <h3 id="template-edit-title">添加模板</h3>
+                <button class="modal-close" data-modal="template-edit-modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="template-edit-id">
+                <div class="form-group">
+                    <label>模板名称 *</label>
+                    <input type="text" id="template-name" placeholder="如：标准周报、简洁周报" class="form-input">
+                </div>
+                <div class="form-group">
+                    <label>模板描述</label>
+                    <input type="text" id="template-desc" placeholder="模板用途说明" class="form-input">
+                </div>
+                <div class="form-group">
+                    <label>模板内容 *</label>
+                    <textarea id="template-content" rows="12" class="form-textarea mono"></textarea>
+                    <small class="form-hint">
+                        支持变量：{{week_range}} {{completed_tasks}} {{in_progress_tasks}} {{pending_tasks}} {{status_changes}}<br>
+                        示例：# {{week_range}} 工作周报<br>
+                        ## 本周完成<br>
+                        {{completed_tasks}}
+                    </small>
+                </div>
+                <div class="form-group">
+                    <label><input type="checkbox" id="template-default"> 设为默认模板</label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" data-modal="template-edit-modal">取消</button>
+                <button id="btn-save-template" class="btn btn-primary">保存</button>
+            </div>
+        </div>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="{{ url_for('static', filename='js/chat.js') }}"></script>
+</body>
+</html>

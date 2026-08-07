@@ -1,5 +1,5 @@
-from flask import Flask, render_template, request, jsonify, send_file, send_from_directory
-from models import db, Todo, TodoStep, StatusHistory, Attachment
+from flask import Flask, render_template, request, jsonify, send_file, send_from_directory, Response, stream_with_context
+from models import db, Todo, TodoStep, StatusHistory, Attachment, ChatConfig, ReportTemplate, ChatMessage
 from config import Config
 from datetime import datetime, timedelta
 import openpyxl
@@ -8,6 +8,8 @@ from io import BytesIO
 import os
 import uuid
 import shutil
+import requests
+import json
 
 app = Flask(__name__)
 app.config.from_object(Config)
@@ -33,6 +35,10 @@ os.makedirs(Config.ATTACHMENT_DIR, exist_ok=True)
 @app.route('/')
 def index():
     return render_template('index.html')
+
+@app.route('/chat')
+def chat_page():
+    return render_template('chat.html')
 
 # ============ Todo API ============
 
@@ -854,6 +860,351 @@ def export_todos():
         as_attachment=True,
         download_name=f'todo_export_{datetime.now().strftime("%Y%m%d_%H%M%S")}.xlsx'
     )
+
+# ============ 聊天智能体 API ============
+
+@app.route('/api/chat/configs', methods=['GET'])
+def get_chat_configs():
+    """获取所有模型配置"""
+    configs = ChatConfig.query.order_by(ChatConfig.is_default.desc(), ChatConfig.created_at.asc()).all()
+    return jsonify([c.to_dict() for c in configs])
+
+@app.route('/api/chat/configs', methods=['POST'])
+def create_chat_config():
+    """创建模型配置"""
+    data = request.json
+    if not data.get('name') or not data.get('api_url') or not data.get('api_key'):
+        return jsonify({'error': '请填写必填字段'}), 400
+    
+    # 如果设为默认，取消其他默认
+    if data.get('is_default'):
+        ChatConfig.query.update({ChatConfig.is_default: False})
+    
+    config = ChatConfig(
+        name=data['name'],
+        api_url=data['api_url'],
+        api_key=data['api_key'],
+        model_name=data.get('model_name', ''),
+        system_prompt=data.get('system_prompt', Config.CHAT_DEFAULT_SYSTEM_PROMPT),
+        is_default=data.get('is_default', False)
+    )
+    db.session.add(config)
+    db.session.commit()
+    return jsonify(config.to_dict()), 201
+
+@app.route('/api/chat/configs/<int:config_id>', methods=['PUT'])
+def update_chat_config(config_id):
+    """更新模型配置"""
+    config = ChatConfig.query.get_or_404(config_id)
+    data = request.json
+    
+    if data.get('is_default'):
+        ChatConfig.query.update({ChatConfig.is_default: False})
+    
+    config.name = data.get('name', config.name)
+    config.api_url = data.get('api_url', config.api_url)
+    if data.get('api_key'):
+        config.api_key = data['api_key']
+    config.model_name = data.get('model_name', config.model_name)
+    config.system_prompt = data.get('system_prompt', config.system_prompt)
+    config.is_default = data.get('is_default', config.is_default)
+    
+    db.session.commit()
+    return jsonify(config.to_dict())
+
+@app.route('/api/chat/configs/<int:config_id>', methods=['DELETE'])
+def delete_chat_config(config_id):
+    """删除模型配置"""
+    config = ChatConfig.query.get_or_404(config_id)
+    db.session.delete(config)
+    db.session.commit()
+    return jsonify({'message': '删除成功'})
+
+@app.route('/api/chat/templates', methods=['GET'])
+def get_templates():
+    """获取所有周报模板"""
+    templates = ReportTemplate.query.order_by(ReportTemplate.is_default.desc(), ReportTemplate.created_at.asc()).all()
+    return jsonify([t.to_dict() for t in templates])
+
+@app.route('/api/chat/templates', methods=['POST'])
+def create_template():
+    """创建周报模板"""
+    data = request.json
+    if not data.get('name') or not data.get('template_content'):
+        return jsonify({'error': '请填写必填字段'}), 400
+    
+    if data.get('is_default'):
+        ReportTemplate.query.update({ReportTemplate.is_default: False})
+    
+    template = ReportTemplate(
+        name=data['name'],
+        description=data.get('description', ''),
+        template_content=data['template_content'],
+        is_default=data.get('is_default', False)
+    )
+    db.session.add(template)
+    db.session.commit()
+    return jsonify(template.to_dict()), 201
+
+@app.route('/api/chat/templates/<int:template_id>', methods=['PUT'])
+def update_template(template_id):
+    """更新周报模板"""
+    template = ReportTemplate.query.get_or_404(template_id)
+    data = request.json
+    
+    if data.get('is_default'):
+        ReportTemplate.query.update({ReportTemplate.is_default: False})
+    
+    template.name = data.get('name', template.name)
+    template.description = data.get('description', template.description)
+    template.template_content = data.get('template_content', template.template_content)
+    template.is_default = data.get('is_default', template.is_default)
+    
+    db.session.commit()
+    return jsonify(template.to_dict())
+
+@app.route('/api/chat/templates/<int:template_id>', methods=['DELETE'])
+def delete_template(template_id):
+    """删除周报模板"""
+    template = ReportTemplate.query.get_or_404(template_id)
+    db.session.delete(template)
+    db.session.commit()
+    return jsonify({'message': '删除成功'})
+
+@app.route('/api/chat/sessions', methods=['GET'])
+def get_chat_sessions():
+    """获取所有会话列表"""
+    # 获取所有有消息的 session_id
+    sessions = db.session.query(
+        ChatMessage.session_id,
+        db.func.min(ChatMessage.created_at).label('created_at'),
+        db.func.max(ChatMessage.created_at).label('updated_at')
+    ).group_by(ChatMessage.session_id).order_by(db.func.max(ChatMessage.created_at).desc()).all()
+    
+    result = []
+    for s in sessions:
+        # 获取第一条用户消息作为标题
+        first_msg = ChatMessage.query.filter_by(
+            session_id=s.session_id, role='user'
+        ).order_by(ChatMessage.created_at.asc()).first()
+        title = first_msg.content[:30] if first_msg else '新对话'
+        
+        result.append({
+            'session_id': s.session_id,
+            'title': title,
+            'created_at': s.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+            'updated_at': s.updated_at.strftime('%Y-%m-%d %H:%M:%S')
+        })
+    
+    return jsonify(result)
+
+@app.route('/api/chat/sessions', methods=['POST'])
+def create_chat_session():
+    """创建新会话"""
+    data = request.json
+    session_id = str(uuid.uuid4())
+    title = data.get('title', '新对话')
+    
+    return jsonify({
+        'session_id': session_id,
+        'title': title,
+        'created_at': datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S'),
+        'updated_at': datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+    }), 201
+
+@app.route('/api/chat/sessions/<session_id>', methods=['DELETE'])
+def delete_chat_session(session_id):
+    """删除会话及所有消息"""
+    ChatMessage.query.filter_by(session_id=session_id).delete()
+    db.session.commit()
+    return jsonify({'message': '删除成功'})
+
+@app.route('/api/chat/sessions/<session_id>/clear', methods=['POST'])
+def clear_chat_session(session_id):
+    """清空会话消息"""
+    ChatMessage.query.filter_by(session_id=session_id).delete()
+    db.session.commit()
+    return jsonify({'message': '清空成功'})
+
+@app.route('/api/chat/messages/<session_id>', methods=['GET'])
+def get_chat_messages(session_id):
+    """获取会话消息历史"""
+    messages = ChatMessage.query.filter_by(session_id=session_id).order_by(ChatMessage.created_at.asc()).all()
+    return jsonify([m.to_dict() for m in messages])
+
+@app.route('/api/chat/weekly-data', methods=['GET'])
+def get_weekly_data():
+    """获取本周任务数据用于周报生成"""
+    # 计算本周一和周日
+    today = datetime.utcnow().date()
+    monday = today - timedelta(days=today.weekday())
+    sunday = monday + timedelta(days=6)
+    
+    # 获取本周有状态变更的任务
+    status_changes = StatusHistory.query.filter(
+        StatusHistory.changed_at >= datetime.combine(monday, datetime.min.time()),
+        StatusHistory.changed_at <= datetime.combine(sunday, datetime.max.time())
+    ).order_by(StatusHistory.changed_at.desc()).all()
+    
+    # 获取本周完成的任务
+    completed_todo_ids = set()
+    for change in status_changes:
+        if change.new_status == '已完成':
+            completed_todo_ids.add(change.todo_id)
+    
+    completed_tasks = Todo.query.filter(Todo.id.in_(completed_todo_ids)).all() if completed_todo_ids else []
+    
+    # 获取当前进行中的任务
+    in_progress_tasks = Todo.query.filter_by(status='进行中', is_archived=False).all()
+    
+    # 获取所有未完成任务
+    pending_tasks = Todo.query.filter(
+        Todo.status.in_(['待开始', '暂挂']),
+        Todo.is_archived == False
+    ).all()
+    
+    # 统计
+    all_todos = Todo.query.filter_by(is_archived=False).all()
+    stats = {
+        'total': len(all_todos),
+        'completed': len([t for t in all_todos if t.status == '已完成']),
+        'in_progress': len([t for t in all_todos if t.status == '进行中']),
+        'pending': len([t for t in all_todos if t.status == '待开始']),
+        'hold': len([t for t in all_todos if t.status == '暂挂']),
+        'cancelled': len([t for t in all_todos if t.status == '已取消'])
+    }
+    
+    return jsonify({
+        'week_range': f"{monday.strftime('%Y-%m-%d')} ~ {sunday.strftime('%Y-%m-%d')}",
+        'total_tasks': stats['total'],
+        'completed': stats['completed'],
+        'in_progress': stats['in_progress'],
+        'pending': stats['pending'],
+        'hold': stats['hold'],
+        'cancelled': stats['cancelled'],
+        'completed_tasks': [{'title': t.title, 'priority': t.priority} for t in completed_tasks],
+        'in_progress_tasks': [{'title': t.title, 'priority': t.priority, 'progress': t.progress} for t in in_progress_tasks],
+        'pending_tasks': [{'title': t.title, 'priority': t.priority} for t in pending_tasks],
+        'status_changes': [{
+            'todo_title': Todo.query.get(change.todo_id).title if Todo.query.get(change.todo_id) else '未知任务',
+            'old_status': change.old_status or '无',
+            'new_status': change.new_status,
+            'changed_at': change.changed_at.strftime('%Y-%m-%d %H:%M'),
+            'remark': change.remark or ''
+        } for change in status_changes]
+    })
+
+@app.route('/api/chat/completions', methods=['POST'])
+def chat_completions():
+    """流式聊天接口 - 调用外部 LLM API"""
+    data = request.json
+    session_id = data.get('session_id')
+    config_id = data.get('config_id')
+    user_message = data.get('message', '')
+    template_content = data.get('template', '')
+    
+    if not session_id or not config_id:
+        return jsonify({'error': '缺少必要参数'}), 400
+    
+    config = ChatConfig.query.get_or_404(config_id)
+    
+    # 保存用户消息
+    user_msg = ChatMessage(session_id=session_id, role='user', content=user_message)
+    db.session.add(user_msg)
+    db.session.commit()
+    
+    # 构建消息历史
+    history_messages = ChatMessage.query.filter_by(session_id=session_id).order_by(ChatMessage.created_at.asc()).all()
+    
+    messages = []
+    
+    # 系统提示词
+    system_prompt = config.system_prompt or Config.CHAT_DEFAULT_SYSTEM_PROMPT
+    if template_content:
+        system_prompt += f"\n\n用户选择了周报模板，请按以下格式输出：\n{template_content}"
+    
+    messages.append({'role': 'system', 'content': system_prompt})
+    
+    # 添加历史消息（最近10轮）
+    recent_messages = history_messages[-20:]  # 最多20条
+    for msg in recent_messages:
+        if msg.role in ('user', 'assistant'):
+            messages.append({'role': msg.role, 'content': msg.content})
+    
+    # 确保当前消息在最后
+    if not messages or messages[-1].get('content') != user_message:
+        messages.append({'role': 'user', 'content': user_message})
+    
+    # 调用 LLM API
+    def generate():
+        full_response = ''
+        try:
+            headers = {
+                'Content-Type': 'application/json',
+                'Authorization': f'Bearer {config.api_key}'
+            }
+            
+            payload = {
+                'model': config.model_name,
+                'messages': messages,
+                'stream': True
+            }
+            
+            # 自动补全 /chat/completions
+            api_url = config.api_url.rstrip('/')
+            if not api_url.endswith('/chat/completions'):
+                api_url = f"{api_url}/chat/completions"
+            
+            response = requests.post(
+                api_url,
+                headers=headers,
+                json=payload,
+                stream=True,
+                timeout=60
+            )
+            
+            if response.status_code != 200:
+                error_msg = f"API 请求失败: {response.status_code} - {response.text[:200]}"
+                yield f"data: {json.dumps({'error': error_msg})}\n\n"
+                return
+            
+            for line in response.iter_lines():
+                if line:
+                    line = line.decode('utf-8')
+                    if line.startswith('data: '):
+                        line_data = line[6:]
+                        if line_data == '[DONE]':
+                            break
+                        try:
+                            chunk = json.loads(line_data)
+                            choices = chunk.get('choices', [])
+                            if not choices:
+                                continue
+                            delta = choices[0].get('delta', {})
+                            content = delta.get('content', '')
+                            if content:
+                                full_response += content
+                                yield f"data: {json.dumps({'content': content})}\n\n"
+                        except (json.JSONDecodeError, KeyError, IndexError) as e:
+                            # 忽略无法解析的行
+                            pass
+            
+            # 保存助手回复
+            if full_response:
+                assistant_msg = ChatMessage(session_id=session_id, role='assistant', content=full_response)
+                db.session.add(assistant_msg)
+                db.session.commit()
+            
+            yield "data: [DONE]\n\n"
+            
+        except requests.exceptions.Timeout:
+            yield f"data: {json.dumps({'error': '请求超时，请检查API配置'})}\n\n"
+        except requests.exceptions.ConnectionError:
+            yield f"data: {json.dumps({'error': '无法连接到API服务器，请检查URL是否正确'})}\n\n"
+        except Exception as e:
+            yield f"data: {json.dumps({'error': f'发生错误: {str(e)}'})}\n\n"
+    
+    return Response(stream_with_context(generate()), mimetype='text/event-stream')
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5050, debug=False)

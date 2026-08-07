@@ -208,3 +208,75 @@ class Attachment(db.Model):
             'mime_type': self.mime_type,
             'uploaded_at': self.uploaded_at.strftime('%Y-%m-%d %H:%M:%S')
         }
+
+
+class ChatConfig(db.Model):
+    """聊天智能体模型配置"""
+    __tablename__ = 'chat_configs'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False, default='默认配置')
+    api_url = db.Column(db.String(500), nullable=False)
+    api_key = db.Column(db.String(500), nullable=False)
+    model_name = db.Column(db.String(200), default='')
+    system_prompt = db.Column(db.Text, default='')
+    is_default = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+            'api_url': self.api_url,
+            'api_key': self.api_key[:8] + '***' if self.api_key else '',
+            'model_name': self.model_name,
+            'system_prompt': self.system_prompt,
+            'is_default': self.is_default,
+            'created_at': self.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+            'updated_at': self.updated_at.strftime('%Y-%m-%d %H:%M:%S')
+        }
+
+
+class ReportTemplate(db.Model):
+    """周报模板"""
+    __tablename__ = 'report_templates'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    description = db.Column(db.Text, default='')
+    template_content = db.Column(db.Text, nullable=False)  # 模板内容，支持变量占位符
+    is_default = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+            'description': self.description,
+            'template_content': self.template_content,
+            'is_default': self.is_default,
+            'created_at': self.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+            'updated_at': self.updated_at.strftime('%Y-%m-%d %H:%M:%S')
+        }
+
+
+class ChatMessage(db.Model):
+    """聊天消息"""
+    __tablename__ = 'chat_messages'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    session_id = db.Column(db.String(36), nullable=False, index=True)  # UUID session
+    role = db.Column(db.String(20), nullable=False)  # user / assistant / system
+    content = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'session_id': self.session_id,
+            'role': self.role,
+            'content': self.content,
+            'created_at': self.created_at.strftime('%Y-%m-%d %H:%M:%S')
+        }
