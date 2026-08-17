@@ -512,20 +512,9 @@ header h1 {
     background: #fcfcfc;
 }
 
+/* 缩进由 JS inline style 动态控制 (level * 20 + 8px)，不使用 !important */
 .task-name-cell {
-    padding-left: 20px !important;
-}
-
-.task-name-cell.level-0 {
-    padding-left: 8px !important;
-}
-
-.task-name-cell.level-1 {
-    padding-left: 28px !important;
-}
-
-.task-name-cell.level-2 {
-    padding-left: 48px !important;
+    /* padding-left set by inline style */
 }
 
 .task-toggle {
