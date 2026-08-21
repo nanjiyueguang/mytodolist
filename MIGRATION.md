@@ -53,7 +53,8 @@ CMD ["sh", "-c", "python3 migrate_db.py && python3 app.py"]
 
 `migrate_db.py` 是幂等的，可以安全重复执行：
 - 已存在的列/表会跳过
-- 不会删除或修改已有数据
+- 不会删除已有数据结构
+- v4（2026-08-21）例外：会将存量 todos.created_at 一次性 +8 小时（UTC→本地时间），由 schema_migrations 表记录，仅执行一次
 - 自动检测当前数据库版本
 
 ## 回滚方案
