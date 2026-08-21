@@ -28,7 +28,7 @@ class Todo(db.Model):
     sort_order = db.Column(db.Integer, default=0, index=True)
     
     created_at = db.Column(db.DateTime, default=datetime.now)  # 创建时间，自动赋值为创建当天（本地时间）
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now)
     
     # 关联
     children = db.relationship('Todo', backref=db.backref('parent', remote_side=[id]), 
@@ -151,7 +151,7 @@ class TodoStep(db.Model):
     order = db.Column(db.Integer, default=0)
     completed = db.Column(db.Boolean, default=False)
     completed_at = db.Column(db.DateTime)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=datetime.now)
     
     def to_dict(self):
         return {
@@ -173,7 +173,7 @@ class StatusHistory(db.Model):
     todo_id = db.Column(db.Integer, db.ForeignKey('todos.id'), nullable=False)
     old_status = db.Column(db.String(20))
     new_status = db.Column(db.String(20), nullable=False)
-    changed_at = db.Column(db.DateTime, default=datetime.utcnow)
+    changed_at = db.Column(db.DateTime, default=datetime.now)
     remark = db.Column(db.Text)
     
     def to_dict(self):
@@ -197,7 +197,7 @@ class Attachment(db.Model):
     stored_name = db.Column(db.String(255), nullable=False)  # 存储文件名
     file_size = db.Column(db.Integer)  # 文件大小(字节)
     mime_type = db.Column(db.String(100))  # MIME类型
-    uploaded_at = db.Column(db.DateTime, default=datetime.utcnow)
+    uploaded_at = db.Column(db.DateTime, default=datetime.now)
     
     def to_dict(self):
         return {

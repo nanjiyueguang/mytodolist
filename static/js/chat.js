@@ -377,10 +377,26 @@
         text += `- 暂挂: ${data.hold}\n`;
         text += `- 已取消: ${data.cancelled}\n\n`;
 
-        if (data.completed_tasks.length > 0) {
-            text += `### 本周完成的任务\n`;
-            data.completed_tasks.forEach(t => {
-                text += `- ✅ ${t.title} (优先级: ${t.priority})\n`;
+        // 本周相关统计
+        text += `### 本周动态\n`;
+        text += `- 本周创建: ${data.created_count} 个任务\n`;
+        text += `- 本周开始: ${data.started_count} 个任务\n`;
+        text += `- 本周完成: ${data.completed_count} 个任务\n`;
+        text += `- 本周结束: ${data.ended_count} 个任务\n\n`;
+
+        if (data.weekly_tasks && data.weekly_tasks.length > 0) {
+            text += `### 本周相关任务\n`;
+            data.weekly_tasks.forEach(t => {
+                let tags = [];
+                if (t.is_created_this_week) tags.push('🆕创建');
+                if (t.is_started_this_week) tags.push('🚀开始');
+                if (t.is_completed_this_week) tags.push('✅完成');
+                if (t.is_ended_this_week) tags.push('🏁结束');
+                const tagStr = tags.length > 0 ? ` [${tags.join(', ')}]` : '';
+                text += `- ${t.title} (状态: ${t.status}, 优先级: ${t.priority})${tagStr}\n`;
+                if (t.start_date) text += `  开始日期: ${t.start_date}\n`;
+                if (t.end_date) text += `  结束日期: ${t.end_date}\n`;
+                if (t.created_at) text += `  创建时间: ${t.created_at}\n`;
             });
             text += '\n';
         }

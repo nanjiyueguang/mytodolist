@@ -336,9 +336,11 @@ def update_status(todo_id):
     todo.status = new_status
     todo.updated_at = datetime.utcnow()
     
-    # 完成时自动设置进度100%
+    # 完成时自动设置进度100%，结束时间为当日
     if new_status == '已完成':
         todo.progress = 100
+        if not todo.end_date:
+            todo.end_date = datetime.now().date()
     elif new_status == '已取消':
         todo.progress = 0
     
@@ -1036,29 +1038,61 @@ def get_chat_messages(session_id):
 @app.route('/api/chat/weekly-data', methods=['GET'])
 def get_weekly_data():
     """获取本周任务数据用于周报生成"""
-    # 计算本周一和周日
-    today = datetime.utcnow().date()
+    # 计算本周一和周日（使用本地时间）
+    today = datetime.now().date()
     monday = today - timedelta(days=today.weekday())
     sunday = monday + timedelta(days=6)
     
-    # 获取本周有状态变更的任务
+    week_start = datetime.combine(monday, datetime.min.time())
+    week_end = datetime.combine(sunday, datetime.max.time())
+    
+    # 1. 本周有状态变更的任务
     status_changes = StatusHistory.query.filter(
-        StatusHistory.changed_at >= datetime.combine(monday, datetime.min.time()),
-        StatusHistory.changed_at <= datetime.combine(sunday, datetime.max.time())
+        StatusHistory.changed_at >= week_start,
+        StatusHistory.changed_at <= week_end
     ).order_by(StatusHistory.changed_at.desc()).all()
     
-    # 获取本周完成的任务
-    completed_todo_ids = set()
+    # 2. 本周创建的任务
+    created_this_week = Todo.query.filter(
+        Todo.created_at >= week_start,
+        Todo.created_at <= week_end,
+        Todo.is_archived == False
+    ).all()
+    
+    # 3. 本周开始的任务（start_date 在本周）
+    started_this_week = Todo.query.filter(
+        Todo.start_date >= monday,
+        Todo.start_date <= sunday,
+        Todo.is_archived == False
+    ).all()
+    
+    # 4. 本周完成的任务（状态变为已完成的时间在本周）
+    completed_this_week_ids = set()
     for change in status_changes:
         if change.new_status == '已完成':
-            completed_todo_ids.add(change.todo_id)
+            completed_this_week_ids.add(change.todo_id)
+    completed_this_week = Todo.query.filter(Todo.id.in_(completed_this_week_ids)).all() if completed_this_week_ids else []
     
-    completed_tasks = Todo.query.filter(Todo.id.in_(completed_todo_ids)).all() if completed_todo_ids else []
+    # 5. 本周结束的任务（end_date 在本周）
+    ended_this_week = Todo.query.filter(
+        Todo.end_date >= monday,
+        Todo.end_date <= sunday,
+        Todo.is_archived == False
+    ).all()
     
-    # 获取当前进行中的任务
+    # 合并所有本周相关任务（去重）
+    weekly_task_ids = set()
+    for task in created_this_week + started_this_week + completed_this_week + ended_this_week:
+        weekly_task_ids.add(task.id)
+    for change in status_changes:
+        weekly_task_ids.add(change.todo_id)
+    
+    weekly_tasks = Todo.query.filter(Todo.id.in_(weekly_task_ids)).all() if weekly_task_ids else []
+    
+    # 当前进行中的任务
     in_progress_tasks = Todo.query.filter_by(status='进行中', is_archived=False).all()
     
-    # 获取所有未完成任务
+    # 所有未完成任务
     pending_tasks = Todo.query.filter(
         Todo.status.in_(['待开始', '暂挂']),
         Todo.is_archived == False
@@ -1075,6 +1109,23 @@ def get_weekly_data():
         'cancelled': len([t for t in all_todos if t.status == '已取消'])
     }
     
+    # 构建任务详情（标注本周相关属性）
+    def task_to_detail(t):
+        return {
+            'id': t.id,
+            'title': t.title,
+            'priority': t.priority,
+            'status': t.status,
+            'progress': t.progress,
+            'start_date': t.start_date.strftime('%Y-%m-%d') if t.start_date else None,
+            'end_date': t.end_date.strftime('%Y-%m-%d') if t.end_date else None,
+            'created_at': t.created_at.strftime('%Y-%m-%d %H:%M') if t.created_at else None,
+            'is_created_this_week': t.id in [task.id for task in created_this_week],
+            'is_started_this_week': t.id in [task.id for task in started_this_week],
+            'is_completed_this_week': t.id in completed_this_week_ids,
+            'is_ended_this_week': t.id in [task.id for task in ended_this_week]
+        }
+    
     return jsonify({
         'week_range': f"{monday.strftime('%Y-%m-%d')} ~ {sunday.strftime('%Y-%m-%d')}",
         'total_tasks': stats['total'],
@@ -1083,7 +1134,11 @@ def get_weekly_data():
         'pending': stats['pending'],
         'hold': stats['hold'],
         'cancelled': stats['cancelled'],
-        'completed_tasks': [{'title': t.title, 'priority': t.priority} for t in completed_tasks],
+        'weekly_tasks': [task_to_detail(t) for t in weekly_tasks],
+        'created_count': len(created_this_week),
+        'started_count': len(started_this_week),
+        'completed_count': len(completed_this_week),
+        'ended_count': len(ended_this_week),
         'in_progress_tasks': [{'title': t.title, 'priority': t.priority, 'progress': t.progress} for t in in_progress_tasks],
         'pending_tasks': [{'title': t.title, 'priority': t.priority} for t in pending_tasks],
         'status_changes': [{
