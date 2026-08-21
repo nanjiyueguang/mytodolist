@@ -307,6 +307,17 @@ header h1 {
     text-align: center;
 }
 
+.col-created-at {
+    width: 100px;
+    min-width: 100px;
+    text-align: center;
+    font-size: 12px;
+    color: #666;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
 .col-date {
     width: 240px;
     min-width: 240px;

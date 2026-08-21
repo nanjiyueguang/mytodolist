@@ -5,6 +5,7 @@
 历史变更：
   v1: 添加归档字段（is_archived, archived_at）+ 附件表（attachments）
   v2: 添加排序字段（sort_order）
+  v4: 存量 created_at 由 UTC 修正为本地时间（+8小时），与新建任务保持一致
 
 使用方法：
     cd /data/mytodolist
@@ -81,6 +82,15 @@ def migrate():
         cursor.execute(f"SELECT name FROM sqlite_master WHERE type='table' AND name='{table_name}'")
         if not cursor.fetchone():
             changes.append(f"⚠️  表 {table_name} 不存在，启动应用后会自动创建")
+
+    # === v4: 存量 created_at 时区修正（UTC -> UTC+8）===
+    # 应用现使用本地时间写入 created_at，历史数据为 UTC，统一 +8 小时
+    cursor.execute("CREATE TABLE IF NOT EXISTS schema_migrations (version TEXT PRIMARY KEY, applied_at DATETIME DEFAULT CURRENT_TIMESTAMP)")
+    cursor.execute("SELECT 1 FROM schema_migrations WHERE version='v4_created_at_tz'")
+    if not cursor.fetchone():
+        cursor.execute("UPDATE todos SET created_at = datetime(created_at, '+8 hours') WHERE created_at IS NOT NULL")
+        cursor.execute("INSERT INTO schema_migrations (version) VALUES ('v4_created_at_tz')")
+        changes.append(f"✅ 存量任务 created_at 时区修正（+8小时，共 {cursor.rowcount} 条）")
 
     conn.commit()
     conn.close()

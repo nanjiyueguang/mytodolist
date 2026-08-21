@@ -335,6 +335,7 @@ function renderTaskTable() {
                         <option value="已取消" ${task.status==='已取消'?'selected':''}>已取消</option>
                     </select>
                 </div>
+                <div class="col-created-at" title="创建时间：${task.created_at || ''}">${task.created_at ? task.created_at.substring(0, 10) : ''}</div>
                 <div class="col-date">
                     ${task.is_auto_date ? `<span class="auto-date-marker" title="自动根据子任务计算">🔄</span>` : ''}
                     <input type="date" class="row-date-input ${task.is_auto_date ? 'auto-date' : ''}" data-task-id="${task.id}" data-field="start_date" data-action="edit-date" value="${task.start_date || ''}" ${task.is_auto_date ? 'readonly' : ''}>

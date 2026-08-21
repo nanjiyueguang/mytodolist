@@ -484,7 +484,7 @@ def download_template():
     ws.title = "导入模板"
     
     # 表头
-    headers = ['任务编号*', '标题*', '描述', '优先级', '状态', '开始日期', '结束日期', '父任务编号']
+    headers = ['任务编号*', '标题*', '描述', '优先级', '状态', '开始日期', '完成日期', '父任务编号']
     header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
     header_font = Font(bold=True, color="FFFFFF")
     
@@ -520,7 +520,7 @@ def download_template():
         ['优先级', '否', '高/中/低，默认为"中"'],
         ['状态', '否', '待开始/进行中/暂挂/已完成/已取消，默认为"待开始"'],
         ['开始日期', '否', '格式：YYYY-MM-DD'],
-        ['结束日期', '否', '格式：YYYY-MM-DD'],
+        ['完成日期', '否', '格式：YYYY-MM-DD'],
         ['父任务编号', '否', '填写父任务的编号，如：1'],
         ['', '', '进度由系统根据步骤自动计算，无需填写'],
     ]
@@ -580,7 +580,8 @@ def import_todos():
             '优先级': 'priority',
             '状态': 'status',
             '开始日期': 'start_date',
-            '结束日期': 'end_date',
+            '完成日期': 'end_date',
+            '结束日期': 'end_date',  # 兼容旧模板
             '父任务编号': 'parent_task_no'
         }
         
@@ -772,7 +773,7 @@ def export_todos():
     header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
     header_font = Font(bold=True, color="FFFFFF")
     
-    headers = ['任务编号', '标题', '描述', '优先级', '当前状态', '进度(%)', '开始日期', '结束日期', '步骤(完成/总数)', '父任务编号', '创建时间', '更新时间']
+    headers = ['任务编号', '标题', '描述', '优先级', '当前状态', '进度(%)', '开始日期', '完成日期', '步骤(完成/总数)', '父任务编号', '创建时间', '更新时间']
     for col, header in enumerate(headers, 1):
         cell = ws.cell(row=1, column=col, value=header)
         cell.fill = header_fill

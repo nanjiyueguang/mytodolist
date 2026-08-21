@@ -27,7 +27,7 @@ class Todo(db.Model):
     # 排序字段
     sort_order = db.Column(db.Integer, default=0, index=True)
     
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=datetime.now)  # 创建时间，自动赋值为创建当天（本地时间）
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
     # 关联
