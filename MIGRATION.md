@@ -6,6 +6,7 @@
 |------|------|----------|
 | v1.0 | 2026-07-17 | 初始版本：todos, todo_steps, status_history 表 |
 | v1.1 | 2026-07-27 | 新增归档功能：todos.is_archived, todos.archived_at 列；新增 attachments 表 |
+| v1.2 | 2026-08-21 | 前端增加"创建时间"列；"结束时间"更名"完成时间"；存量 created_at 时区修正 UTC→UTC+8（migrate v4） |
 
 ## 线上部署迁移
 
