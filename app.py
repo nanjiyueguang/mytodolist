@@ -83,9 +83,27 @@ def create_todo():
     db.session.add(history)
     db.session.commit()
     
-    # 如果是子任务，更新父任务日期
+    # 如果是子任务，更新父任务日期和状态
     if todo.parent_id:
         update_parent_dates(todo.id)
+        # 父任务若已完成，新增子任务说明还需要继续做，自动改为进行中
+        parent = Todo.query.get(todo.parent_id)
+        if parent and parent.status == '已完成':
+            old_status = parent.status
+            parent.status = '进行中'
+            parent.progress = 0
+            parent.updated_at = datetime.utcnow()
+            history = StatusHistory(
+                todo_id=parent.id,
+                old_status=old_status,
+                new_status='进行中',
+                remark='新增子任务，自动从已完成改为进行中'
+            )
+            db.session.add(history)
+            db.session.commit()
+            # 递归向上检查
+            if parent.parent_id:
+                _auto_update_parent_status(parent.parent_id)
     
     return jsonify(todo.to_dict()), 201
 
@@ -368,9 +386,9 @@ def _auto_update_parent_status(parent_id):
     if not children:
         return
     
-    # 规则1：任一子任务进行中 → 父任务从待开始变为进行中
+    # 规则1：任一子任务进行中 → 父任务从待开始/已完成变为进行中
     any_in_progress = any(c.status == '进行中' for c in children)
-    if any_in_progress and parent.status == '待开始':
+    if any_in_progress and parent.status in ('待开始', '已完成'):
         old_status = parent.status
         parent.status = '进行中'
         parent.updated_at = datetime.utcnow()
