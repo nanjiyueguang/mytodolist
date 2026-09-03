@@ -1,5 +1,5 @@
 from flask import Flask, render_template, request, jsonify, send_file, send_from_directory, Response, stream_with_context
-from models import db, Todo, TodoStep, StatusHistory, Attachment, ChatConfig, ReportTemplate, ChatMessage
+from models import db, Todo, TodoStep, StatusHistory, Attachment, ChatConfig, ReportTemplate, ChatMessage, TodoNote
 from config import Config
 from datetime import datetime, timedelta
 import openpyxl
@@ -438,7 +438,38 @@ def _delete_recursive(todo):
         _delete_recursive(child)
     StatusHistory.query.filter_by(todo_id=todo.id).delete()
     TodoStep.query.filter_by(todo_id=todo.id).delete()
+    TodoNote.query.filter_by(todo_id=todo.id).delete()
+    Attachment.query.filter_by(todo_id=todo.id).delete()
     db.session.delete(todo)
+
+# ============ Note API ============
+
+@app.route('/api/todos/<int:todo_id>/note', methods=['GET'])
+def get_note(todo_id):
+    """获取任务笔记"""
+    note = TodoNote.query.filter_by(todo_id=todo_id).first()
+    if note:
+        return jsonify(note.to_dict())
+    return jsonify({'todo_id': todo_id, 'content': ''})
+
+@app.route('/api/todos/<int:todo_id>/note', methods=['PUT'])
+def save_note(todo_id):
+    """保存任务笔记（upsert）"""
+    todo = Todo.query.get_or_404(todo_id)
+    data = request.json
+    content = data.get('content', '')
+    
+    note = TodoNote.query.filter_by(todo_id=todo_id).first()
+    if note:
+        note.content = content
+        note.updated_at = datetime.utcnow()
+    else:
+        note = TodoNote(todo_id=todo_id, content=content)
+        db.session.add(note)
+    
+    todo.updated_at = datetime.utcnow()
+    db.session.commit()
+    return jsonify(note.to_dict())
 
 # ============ Step API ============
 
@@ -793,12 +824,12 @@ def export_todos():
     header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
     header_font = Font(bold=True, color="FFFFFF")
     
-    headers = ['任务编号', '标题', '描述', '优先级', '当前状态', '进度(%)', '开始日期', '完成日期', '步骤(完成/总数)', '父任务编号', '创建时间', '更新时间']
+    headers = ['任务编号', '标题', '描述', '优先级', '当前状态', '进度(%)', '开始日期', '完成日期', '步骤(完成/总数)', '笔记', '父任务编号', '创建时间', '更新时间']
     for col, header in enumerate(headers, 1):
         cell = ws.cell(row=1, column=col, value=header)
         cell.fill = header_fill
         cell.font = header_font
-        cell.alignment = Alignment(horizontal='center', vertical='center')
+        cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
     
     # 层级颜色
     level_fills = {
@@ -816,6 +847,10 @@ def export_todos():
         if level > 0:
             title_text = f"{'  ' * level}└ {todo.title}"
         
+        note_content = todo.note.content if todo.note else ''
+        # 笔记摘要：取前100字符
+        note_summary = note_content[:100] + ('...' if len(note_content) > 100 else '') if note_content else ''
+        
         ws.cell(row=row_idx, column=1, value=task_code)
         ws.cell(row=row_idx, column=2, value=title_text)
         ws.cell(row=row_idx, column=3, value=todo.description or '')
@@ -825,13 +860,14 @@ def export_todos():
         ws.cell(row=row_idx, column=7, value=todo.start_date.strftime('%Y-%m-%d') if todo.start_date else '')
         ws.cell(row=row_idx, column=8, value=todo.end_date.strftime('%Y-%m-%d') if todo.end_date else '')
         ws.cell(row=row_idx, column=9, value=f"{step_stats['completed']}/{step_stats['total']}")
-        ws.cell(row=row_idx, column=10, value=parent_code if parent_code else '')
-        ws.cell(row=row_idx, column=11, value=todo.created_at.strftime('%Y-%m-%d %H:%M:%S'))
-        ws.cell(row=row_idx, column=12, value=todo.updated_at.strftime('%Y-%m-%d %H:%M:%S'))
+        ws.cell(row=row_idx, column=10, value=note_summary)
+        ws.cell(row=row_idx, column=11, value=parent_code if parent_code else '')
+        ws.cell(row=row_idx, column=12, value=todo.created_at.strftime('%Y-%m-%d %H:%M:%S'))
+        ws.cell(row=row_idx, column=13, value=todo.updated_at.strftime('%Y-%m-%d %H:%M:%S'))
         
         # 层级背景色
         fill = level_fills.get(level, level_fills[2])
-        for col in range(1, 13):
+        for col in range(1, 14):
             ws.cell(row=row_idx, column=col).fill = fill
         
         # 顶层任务加粗
@@ -840,7 +876,7 @@ def export_todos():
             ws.cell(row=row_idx, column=1).font = bold_font
             ws.cell(row=row_idx, column=2).font = bold_font
     
-    for col_letter, width in [('A',12),('B',40),('C',40),('D',10),('E',12),('F',10),('G',12),('H',12),('I',14),('J',14),('K',20),('L',20)]:
+    for col_letter, width in [('A',12),('B',40),('C',40),('D',10),('E',12),('F',10),('G',12),('H',12),('I',14),('J',50),('K',14),('L',20),('M',20)]:
         ws.column_dimensions[col_letter].width = width
     
     # 状态历史工作表
@@ -870,6 +906,26 @@ def export_todos():
     
     for col_letter, width in [('A',12),('B',30),('C',12),('D',12),('E',20),('F',30)]:
         ws_history.column_dimensions[col_letter].width = width
+    
+    # 任务笔记工作表
+    notes_with_content = [(level, task_code, parent_code, todo) for level, task_code, parent_code, todo in flat_list if todo.note and todo.note.content]
+    if notes_with_content:
+        ws_notes = wb.create_sheet("任务笔记")
+        note_headers = ['任务编号', '标题', '笔记内容']
+        for col, header in enumerate(note_headers, 1):
+            cell = ws_notes.cell(row=1, column=col, value=header)
+            cell.fill = header_fill
+            cell.font = header_font
+            cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+        
+        for row_idx, (level, task_code, parent_code, todo) in enumerate(notes_with_content, 2):
+            ws_notes.cell(row=row_idx, column=1, value=task_code)
+            ws_notes.cell(row=row_idx, column=2, value=todo.title)
+            ws_notes.cell(row=row_idx, column=3, value=todo.note.content)
+            ws_notes.cell(row=row_idx, column=3).alignment = Alignment(wrap_text=True, vertical='top')
+        
+        for col_letter, width in [('A',12),('B',30),('C',80)]:
+            ws_notes.column_dimensions[col_letter].width = width
     
     output = BytesIO()
     wb.save(output)

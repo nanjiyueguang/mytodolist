@@ -39,6 +39,7 @@ class Todo(db.Model):
                            order_by='TodoStep.order.asc()')
     attachments = db.relationship('Attachment', backref='todo', lazy='dynamic',
                                  order_by='Attachment.uploaded_at.desc()')
+    note = db.relationship('TodoNote', backref=db.backref('todo', uselist=False), uselist=False, lazy='joined')
     
     def get_auto_dates(self):
         """根据子任务递归计算汇总日期
@@ -117,7 +118,8 @@ class Todo(db.Model):
             'attachments': [a.to_dict() for a in self.attachments.all()],
             'children': [c.to_dict(include_children=True) for c in children_list] if include_children else [],
             'step_stats': step_stats,
-            'children_stats': self.get_children_stats()
+            'children_stats': self.get_children_stats(),
+            'has_note': self.note is not None and bool(self.note.content)
         }
         return data
     
@@ -257,6 +259,26 @@ class ReportTemplate(db.Model):
             'description': self.description,
             'template_content': self.template_content,
             'is_default': self.is_default,
+            'created_at': self.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+            'updated_at': self.updated_at.strftime('%Y-%m-%d %H:%M:%S')
+        }
+
+
+class TodoNote(db.Model):
+    """任务笔记（Markdown）"""
+    __tablename__ = 'todo_notes'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    todo_id = db.Column(db.Integer, db.ForeignKey('todos.id'), nullable=False, unique=True)
+    content = db.Column(db.Text, default='')
+    created_at = db.Column(db.DateTime, default=datetime.now)
+    updated_at = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now)
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'todo_id': self.todo_id,
+            'content': self.content,
             'created_at': self.created_at.strftime('%Y-%m-%d %H:%M:%S'),
             'updated_at': self.updated_at.strftime('%Y-%m-%d %H:%M:%S')
         }

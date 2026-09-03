@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Todo 任务管理</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 </head>
 <body>
     <div class="container">
@@ -142,6 +143,47 @@
                 <button id="btn-toggle-archived" class="btn btn-secondary">展开</button>
             </div>
             <div id="archived-task-list" class="archived-task-list" style="display:none;"></div>
+        </div>
+    </div>
+
+    <!-- MD 笔记编辑弹窗 -->
+    <div id="note-modal" class="modal-overlay" style="display:none;">
+        <div class="modal-dialog note-modal-dialog">
+            <div class="modal-header">
+                <h3>📝 任务笔记 — <span id="note-task-title"></span></h3>
+                <button class="modal-close" id="btn-note-close">&times;</button>
+            </div>
+            <div class="modal-body note-modal-body">
+                <div class="note-editor-wrap">
+                    <div class="note-editor-pane">
+                        <div class="note-pane-header">✎ Markdown 编辑</div>
+                        <textarea id="note-content" class="note-textarea" placeholder="在此输入 Markdown 内容..."></textarea>
+                    </div>
+                    <div class="note-editor-pane">
+                        <div class="note-pane-header">👁 实时预览</div>
+                        <div id="note-preview" class="note-preview"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="btn-note-cancel">取消</button>
+                <button class="btn btn-primary" id="btn-note-save">💾 保存</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 彻底删除确认弹窗 -->
+    <div id="delete-confirm-modal" class="modal-overlay" style="display:none;">
+        <div class="modal-dialog delete-confirm-dialog">
+            <div class="modal-body" style="text-align:center;padding:32px 24px;">
+                <div style="font-size:48px;margin-bottom:12px;">⚠️</div>
+                <div style="font-size:16px;font-weight:600;margin-bottom:8px;">确定彻底删除此任务？</div>
+                <div id="delete-confirm-desc" style="font-size:13px;color:#888;margin-bottom:20px;line-height:1.6;"></div>
+                <div style="display:flex;gap:12px;justify-content:center;">
+                    <button class="btn btn-secondary" id="btn-delete-cancel" style="min-width:80px;">取消</button>
+                    <button class="btn btn-danger" id="btn-delete-confirm" style="min-width:80px;">确认删除</button>
+                </div>
+            </div>
         </div>
     </div>
 

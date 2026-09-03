@@ -10,6 +10,9 @@ let filters = {
     endDate: ''
 };
 
+let currentNoteTaskId = null;
+let pendingDeleteTaskId = null;
+
 document.addEventListener('DOMContentLoaded', () => {
     const today = new Date().toISOString().split('T')[0];
     document.getElementById('todo-start-date').value = today;
@@ -20,6 +23,8 @@ document.addEventListener('DOMContentLoaded', () => {
     bindEvents();
     bindFilters();
     bindAttachmentEvents();
+    bindNoteEvents();
+    bindDeleteConfirmEvents();
 });
 
 // 默认折叠所有任务
@@ -314,6 +319,7 @@ function renderTaskTable() {
                     <div class="task-row-actions">
                         <button class="btn-add-todo-inline" data-task-id="${task.id}" data-action="add-todo-inline" title="添加待办">+todo</button>
                         <button class="btn-add-child-inline" data-task-id="${task.id}" data-action="add-child-inline" title="增加子任务">+子任务</button>
+                        <button class="btn-note-inline ${task.has_note ? 'btn-note-active' : ''}" data-task-id="${task.id}" data-action="edit-note" title="编辑笔记">📝</button>
                         <button class="btn-attachment-inline" data-task-id="${task.id}" data-action="manage-attachment" title="附件管理">📎${task.attachments && task.attachments.length > 0 ? `<span class="attachment-count">${task.attachments.length}</span>` : ''}</button>
                         ${task.level === 0 ? `<button class="btn-archive-inline" data-task-id="${task.id}" data-action="archive-task" title="归档">📦归档</button>` : ''}
                         <button class="btn-delete-inline" data-task-id="${task.id}" data-action="delete-task-inline" title="删除任务">×</button>
@@ -451,6 +457,16 @@ function renderTaskTable() {
                 e.preventDefault();
                 const taskId = parseInt(attachmentBtn.getAttribute('data-task-id'));
                 openAttachmentModal(taskId);
+                return;
+            }
+            
+            // 笔记编辑按钮
+            const noteBtn = e.target.closest('[data-action="edit-note"]');
+            if (noteBtn) {
+                e.stopPropagation();
+                e.preventDefault();
+                const taskId = parseInt(noteBtn.getAttribute('data-task-id'));
+                openNoteModal(taskId);
                 return;
             }
         });
@@ -882,6 +898,7 @@ function renderArchivedTasks() {
                 <div class="archived-task-actions">
                     <button class="btn btn-secondary" data-task-id="${task.id}" data-action="restore-task">🔄 还原</button>
                     <button class="btn btn-secondary" data-task-id="${task.id}" data-action="view-archived-desc">📝 查看描述</button>
+                    <button class="btn btn-danger" data-task-id="${task.id}" data-action="delete-task">🗑️ 彻底删除</button>
                 </div>
             </div>
         `;
@@ -903,6 +920,14 @@ function renderArchivedTasks() {
             e.stopPropagation();
             const taskId = parseInt(btn.getAttribute('data-task-id'));
             viewArchivedDescription(taskId);
+        });
+    });
+    
+    container.querySelectorAll('[data-action="delete-task"]').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const taskId = parseInt(btn.getAttribute('data-task-id'));
+            showDeleteConfirm(taskId);
         });
     });
 }
@@ -1221,6 +1246,128 @@ function escapeHtml(text) {
     div.textContent = text;
     return div.innerHTML;
 }
+
+// ============ 笔记功能 ============
+function bindNoteEvents() {
+    document.getElementById('btn-note-close').addEventListener('click', closeNoteModal);
+    document.getElementById('btn-note-cancel').addEventListener('click', closeNoteModal);
+    document.getElementById('btn-note-save').addEventListener('click', saveNote);
+    document.getElementById('note-modal').addEventListener('click', (e) => {
+        if (e.target.id === 'note-modal') closeNoteModal();
+    });
+    // 实时预览
+    document.getElementById('note-content').addEventListener('input', (e) => {
+        updateNotePreview(e.target.value);
+    });
+}
+
+async function openNoteModal(taskId) {
+    currentNoteTaskId = taskId;
+    const task = allTasks.find(t => t.id === taskId) || archivedTasks.find(t => t.id === taskId);
+    if (!task) return;
+    
+    document.getElementById('note-task-title').textContent = task.title;
+    document.getElementById('note-content').value = '';
+    document.getElementById('note-preview').innerHTML = '<span style="color:#999;">预览区域</span>';
+    
+    try {
+        const res = await fetch(`/api/todos/${taskId}/note`);
+        const data = await res.json();
+        document.getElementById('note-content').value = data.content || '';
+        updateNotePreview(data.content || '');
+    } catch (err) {
+        console.error('加载笔记失败:', err);
+    }
+    
+    document.getElementById('note-modal').style.display = 'flex';
+}
+
+function closeNoteModal() {
+    document.getElementById('note-modal').style.display = 'none';
+    currentNoteTaskId = null;
+}
+
+function updateNotePreview(content) {
+    const preview = document.getElementById('note-preview');
+    if (!content.trim()) {
+        preview.innerHTML = '<span style="color:#999;">预览区域</span>';
+        return;
+    }
+    if (typeof marked !== 'undefined') {
+        preview.innerHTML = marked.parse(content);
+    } else {
+        preview.textContent = content;
+    }
+}
+
+async function saveNote() {
+    if (!currentNoteTaskId) return;
+    const content = document.getElementById('note-content').value;
+    
+    try {
+        const res = await fetch(`/api/todos/${currentNoteTaskId}/note`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ content })
+        });
+        if (!res.ok) throw new Error('保存失败');
+        
+        // 更新本地状态
+        const task = allTasks.find(t => t.id === currentNoteTaskId);
+        if (task) task.has_note = content.trim().length > 0;
+        
+        alert('笔记已保存');
+        closeNoteModal();
+        renderTaskTable();
+    } catch (err) {
+        console.error('保存笔记失败:', err);
+        alert('保存失败: ' + err.message);
+    }
+}
+
+// ============ 彻底删除确认 ============
+function bindDeleteConfirmEvents() {
+    document.getElementById('btn-delete-cancel').addEventListener('click', closeDeleteConfirm);
+    document.getElementById('btn-delete-confirm').addEventListener('click', confirmDelete);
+    document.getElementById('delete-confirm-modal').addEventListener('click', (e) => {
+        if (e.target.id === 'delete-confirm-modal') closeDeleteConfirm();
+    });
+}
+
+function showDeleteConfirm(taskId) {
+    pendingDeleteTaskId = taskId;
+    const task = archivedTasks.find(t => t.id === taskId);
+    if (!task) return;
+    
+    const childCount = task.children ? task.children.length : 0;
+    let desc = `将删除 <strong>「${escapeHtml(task.title)}」</strong>`;
+    if (childCount > 0) desc += ` 及其 ${childCount} 个子任务`;
+    desc += '、所有步骤、状态历史和笔记。<br><strong style="color:#ff4d4f;">此操作不可恢复！</strong>';
+    
+    document.getElementById('delete-confirm-desc').innerHTML = desc;
+    document.getElementById('delete-confirm-modal').style.display = 'flex';
+}
+
+function closeDeleteConfirm() {
+    document.getElementById('delete-confirm-modal').style.display = 'none';
+    pendingDeleteTaskId = null;
+}
+
+async function confirmDelete() {
+    if (!pendingDeleteTaskId) return;
+    
+    try {
+        const res = await fetch(`/api/todos/${pendingDeleteTaskId}`, { method: 'DELETE' });
+        if (!res.ok) throw new Error('删除失败');
+        
+        closeDeleteConfirm();
+        loadArchivedTodos();
+    } catch (err) {
+        console.error('删除失败:', err);
+        alert('删除失败: ' + err.message);
+    }
+}
+
 
 
 // 列宽拖拽
