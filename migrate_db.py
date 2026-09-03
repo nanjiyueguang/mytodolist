@@ -92,6 +92,21 @@ def migrate():
         cursor.execute("INSERT INTO schema_migrations (version) VALUES ('v4_created_at_tz')")
         changes.append(f"✅ 存量任务 created_at 时区修正（+8小时，共 {cursor.rowcount} 条）")
 
+    # === v5: 任务笔记表（todo_notes）===
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='todo_notes'")
+    if not cursor.fetchone():
+        cursor.execute("""
+            CREATE TABLE todo_notes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                todo_id INTEGER NOT NULL UNIQUE,
+                content TEXT DEFAULT '',
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (todo_id) REFERENCES todos(id)
+            )
+        """)
+        changes.append("✅ 创建表: todo_notes（任务 Markdown 笔记）")
+
     conn.commit()
     conn.close()
 
