@@ -1111,11 +1111,21 @@ def get_chat_messages(session_id):
 
 @app.route('/api/chat/weekly-data', methods=['GET'])
 def get_weekly_data():
-    """获取本周任务数据用于周报生成"""
-    # 计算本周一和周日（使用本地时间）
-    today = datetime.now().date()
-    monday = today - timedelta(days=today.weekday())
-    sunday = monday + timedelta(days=6)
+    """获取指定时间段任务数据用于周报生成，支持 ?start_date=&end_date= 参数，不传则默认本周"""
+    # 支持自定义日期范围，不传则默认本周一~周日
+    start_date_str = request.args.get('start_date', '').strip()
+    end_date_str = request.args.get('end_date', '').strip()
+
+    if start_date_str and end_date_str:
+        try:
+            monday = datetime.strptime(start_date_str, '%Y-%m-%d').date()
+            sunday = datetime.strptime(end_date_str, '%Y-%m-%d').date()
+        except ValueError:
+            return jsonify({'error': '日期格式错误，应为 YYYY-MM-DD'}), 400
+    else:
+        today = datetime.now().date()
+        monday = today - timedelta(days=today.weekday())
+        sunday = monday + timedelta(days=6)
     
     week_start = datetime.combine(monday, datetime.min.time())
     week_end = datetime.combine(sunday, datetime.max.time())

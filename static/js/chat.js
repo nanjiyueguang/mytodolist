@@ -355,16 +355,20 @@
     }
 
     // ============ 周报数据 ============
-    async function getWeeklyData() {
-        const data = await api('/api/chat/weekly-data');
+    async function getWeeklyData(startDate, endDate) {
+        let url = '/api/chat/weekly-data';
+        const params = [];
+        if (startDate) params.push('start_date=' + startDate);
+        if (endDate) params.push('end_date=' + endDate);
+        if (params.length) url += '?' + params.join('&');
+        const data = await api(url);
         return data;
     }
 
     async function insertWeeklyData() {
-        const data = await getWeeklyData();
-        const text = formatWeeklyDataForPrompt(data);
-        $input.value = `请根据以下本周任务数据，帮我生成周报：\n\n${text}`;
-        $input.focus();
+        // 也弹出日期选择弹窗
+        initWeeklyDateModal('insert');
+        showModal('weekly-date-modal');
     }
 
     function formatWeeklyDataForPrompt(data) {
@@ -421,6 +425,44 @@
         return text;
     }
 
+    // ============ 周报日期弹窗 ============
+    function initWeeklyDateModal(mode) {
+        const $modal = document.getElementById('weekly-date-modal');
+        $modal.dataset.mode = mode;
+        const $start = document.getElementById('weekly-start-date');
+        const $end = document.getElementById('weekly-end-date');
+        const $title = $modal.querySelector('.modal-header h3');
+        const $confirm = document.getElementById('btn-confirm-weekly');
+
+        // 默认本周
+        const today = new Date();
+        const day = today.getDay() || 7;
+        const mon = new Date(today);
+        mon.setDate(mon.getDate() - day + 1);
+        const sun = new Date(mon);
+        sun.setDate(sun.getDate() + 6);
+        $start.value = formatDate(mon);
+        $end.value = formatDate(sun);
+
+        if (mode === 'insert') {
+            $title.textContent = '📊 选择任务数据时间范围';
+            $confirm.textContent = '插入数据';
+        } else if (mode === 'summary') {
+            $title.textContent = '📈 选择统计时间范围';
+            $confirm.textContent = '生成统计';
+        } else {
+            $title.textContent = '📊 选择周报时间范围';
+            $confirm.textContent = '生成周报';
+        }
+    }
+
+    function formatDate(d) {
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${day}`;
+    }
+
     // ============ 事件绑定 ============
     function bindEvents() {
         // 发送消息
@@ -450,24 +492,79 @@
         // 插入任务数据
         document.getElementById('btn-insert-weekly-data').addEventListener('click', insertWeeklyData);
 
-        // 生成周报
-        document.getElementById('btn-gen-weekly').addEventListener('click', async () => {
-            const data = await getWeeklyData();
-            const text = formatWeeklyDataForPrompt(data);
-            const tplId = $templateSelector.value;
-            let prompt = `请根据以下本周任务数据生成周报：\n\n${text}`;
-            if (tplId) {
-                const tpl = templates.find(t => t.id == tplId);
-                if (tpl) prompt += `\n\n请按以下模板格式输出：\n${tpl.template_content}`;
+        // 生成周报 - 弹出日期选择
+        document.getElementById('btn-gen-weekly').addEventListener('click', () => {
+            initWeeklyDateModal('weekly');
+            showModal('weekly-date-modal');
+        });
+
+        // 日期弹窗快捷按钮
+        document.querySelectorAll('.weekly-quick-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const days = btn.dataset.days;
+                const action = btn.dataset.action;
+                const $start = document.getElementById('weekly-start-date');
+                const $end = document.getElementById('weekly-end-date');
+                const today = new Date();
+                if (days) {
+                    const end = formatDate(today);
+                    const start = new Date(today);
+                    start.setDate(start.getDate() - parseInt(days) + 1);
+                    $start.value = formatDate(start);
+                    $end.value = end;
+                } else if (action === 'thisweek') {
+                    const day = today.getDay() || 7;
+                    const mon = new Date(today);
+                    mon.setDate(mon.getDate() - day + 1);
+                    const sun = new Date(mon);
+                    sun.setDate(sun.getDate() + 6);
+                    $start.value = formatDate(mon);
+                    $end.value = formatDate(sun);
+                } else if (action === 'lastweek') {
+                    const day = today.getDay() || 7;
+                    const mon = new Date(today);
+                    mon.setDate(mon.getDate() - day + 1 - 7);
+                    const sun = new Date(mon);
+                    sun.setDate(sun.getDate() + 6);
+                    $start.value = formatDate(mon);
+                    $end.value = formatDate(sun);
+                }
+            });
+        });
+
+        // 确认生成周报
+        document.getElementById('btn-confirm-weekly').addEventListener('click', async () => {
+            const startDate = document.getElementById('weekly-start-date').value;
+            const endDate = document.getElementById('weekly-end-date').value;
+            if (!startDate || !endDate) {
+                alert('请选择开始和结束日期');
+                return;
             }
-            sendMessage(prompt);
+            hideModal('weekly-date-modal');
+            const mode = document.getElementById('weekly-date-modal').dataset.mode;
+            const data = await getWeeklyData(startDate, endDate);
+            const text = formatWeeklyDataForPrompt(data);
+            if (mode === 'insert') {
+                $input.value = `请根据以下任务数据（${startDate} ~ ${endDate}），帮我生成周报：\n\n${text}`;
+                $input.focus();
+            } else if (mode === 'summary') {
+                sendMessage(`请帮我做以下时间段的任務统计汇总（${startDate} ~ ${endDate}）：\n\n${text}`);
+            } else {
+                const tplId = $templateSelector.value;
+                let prompt = `请根据以下任务数据生成周报（${startDate} ~ ${endDate}）：\n\n${text}`;
+                if (tplId) {
+                    const tpl = templates.find(t => t.id == tplId);
+                    if (tpl) prompt += `\n\n请按以下模板格式输出：\n${tpl.template_content}`;
+                }
+                sendMessage(prompt);
+            }
         });
 
         // 任务统计
         document.getElementById('btn-gen-summary').addEventListener('click', async () => {
-            const data = await getWeeklyData();
-            const text = formatWeeklyDataForPrompt(data);
-            sendMessage(`请帮我做一个任务统计汇总：\n\n${text}`);
+            // 统计也用日期选择
+            initWeeklyDateModal('summary');
+            showModal('weekly-date-modal');
         });
 
         // 模型配置管理

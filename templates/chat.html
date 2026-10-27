@@ -24,7 +24,7 @@
             <!-- 快捷操作 -->
             <div class="sidebar-section">
                 <h3>快捷操作</h3>
-                <button class="btn btn-secondary btn-block" id="btn-gen-weekly">📊 生成本周周报</button>
+                <button class="btn btn-secondary btn-block" id="btn-gen-weekly">📊 生成周报</button>
                 <button class="btn btn-secondary btn-block" id="btn-gen-summary">📈 任务统计汇总</button>
             </div>
             
@@ -73,6 +73,40 @@
                 </div>
             </div>
         </main>
+    </div>
+    
+    <!-- 周报日期选择弹窗 -->
+    <div id="weekly-date-modal" class="modal-overlay" style="display:none;">
+        <div class="modal-dialog">
+            <div class="modal-header">
+                <h3>📊 选择周报时间范围</h3>
+                <button class="modal-close" data-modal="weekly-date-modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>开始日期</label>
+                    <input type="date" id="weekly-start-date" class="form-input">
+                </div>
+                <div class="form-group">
+                    <label>结束日期</label>
+                    <input type="date" id="weekly-end-date" class="form-input">
+                </div>
+                <div class="form-group">
+                    <label>快捷选择</label>
+                    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                        <button class="btn btn-sm btn-secondary weekly-quick-btn" data-days="7">最近7天</button>
+                        <button class="btn btn-sm btn-secondary weekly-quick-btn" data-days="14">最近14天</button>
+                        <button class="btn btn-sm btn-secondary weekly-quick-btn" data-days="30">最近30天</button>
+                        <button class="btn btn-sm btn-secondary weekly-quick-btn" data-action="thisweek">本周</button>
+                        <button class="btn btn-sm btn-secondary weekly-quick-btn" data-action="lastweek">上周</button>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" data-modal="weekly-date-modal">取消</button>
+                <button id="btn-confirm-weekly" class="btn btn-primary">生成周报</button>
+            </div>
+        </div>
     </div>
     
     <!-- 模型配置弹窗 -->
