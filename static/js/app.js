@@ -1395,9 +1395,11 @@ function initResize(col, startEvent) {
         const newWidth = Math.max(50, startWidth + (e.clientX - startX));
         col.style.width = newWidth + 'px'; col.style.minWidth = newWidth + 'px'; col.style.flex = 'none';
         const colIndex = Array.from(col.parentElement.children).indexOf(col);
+        // 跳过任务名称列（保持 flex:1 自适应，不设固定宽度）
+        const isTaskNameCol = col.classList.contains('col-task-name');
         document.querySelectorAll('.task-row').forEach(row => {
             const cell = row.children[colIndex];
-            if (cell) { cell.style.width = newWidth+'px'; cell.style.minWidth = newWidth+'px'; cell.style.flex = 'none'; }
+            if (cell && !isTaskNameCol) { cell.style.width = newWidth+'px'; cell.style.minWidth = newWidth+'px'; cell.style.flex = 'none'; }
         });
     }
     function stopResize() {
