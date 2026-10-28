@@ -304,6 +304,7 @@ function renderTaskTable() {
 
         html += `
             <div class="task-row level-${task.level} ${task.is_overdue ? 'overdue-task' : ''} ${isCollapsed ? 'collapsed' : ''} ${task.status === '已完成' ? 'task-completed' : ''}" data-task-id="${task.id}" draggable="true">
+                <div class="col-drag-handle-header"></div>
                 <div class="col-task-code">${task.taskCode}</div>
                 <div class="col-task-name task-name-cell level-${task.level}" style="padding-left: ${8 + indent}px">
                     ${toggleIcon}
