@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from flask_sqlalchemy import SQLAlchemy
 import os
 
@@ -9,11 +9,11 @@ class Todo(db.Model):
     __tablename__ = 'todos'
     
     id = db.Column(db.Integer, primary_key=True)
-    parent_id = db.Column(db.Integer, db.ForeignKey('todos.id'), nullable=True)
+    parent_id = db.Column(db.Integer, db.ForeignKey('todos.id'), nullable=True, index=True)
     title = db.Column(db.String(200), nullable=False)
     description = db.Column(db.Text)
-    status = db.Column(db.String(20), nullable=False, default='待开始')
-    priority = db.Column(db.String(10), default='中')  # 高/中/低
+    status = db.Column(db.String(20), nullable=False, default='待开始', index=True)
+    priority = db.Column(db.String(10), default='中', index=True)  # 高/中/低
     progress = db.Column(db.Integer, default=0)  # 进度百分比 0-100
     
     # 甘特图字段
@@ -21,7 +21,7 @@ class Todo(db.Model):
     end_date = db.Column(db.Date)
     
     # 归档字段
-    is_archived = db.Column(db.Boolean, default=False)
+    is_archived = db.Column(db.Boolean, default=False, index=True)
     archived_at = db.Column(db.DateTime)
     
     # 排序字段
@@ -74,19 +74,20 @@ class Todo(db.Model):
 
     def to_dict(self, include_children=True):
         # 计算是否逾期
-        today = datetime.utcnow().date()
+        today = datetime.now(timezone.utc).date()
         
         # 先获取步骤统计（无论是否有子任务）
         step_stats = self.get_step_stats()
         
-        # 计算进度：只根据子任务进度，步骤不影响任务进度
+        # 计算进度：有子任务时根据子任务进度计算，叶子任务使用存储值
         calculated_progress = self.progress
-        
-        # 如果有子任务，根据子任务进度计算
         children_list = self.children.all()
         if children_list:
             total_children_progress = sum(child.progress for child in children_list)
             calculated_progress = int(total_children_progress / len(children_list))
+            # 同步更新存储值
+            if self.progress != calculated_progress:
+                self.progress = calculated_progress
         
         # 计算显示日期：有子任务时自动汇总
         display_start, display_end, is_auto_date = self.get_auto_dates()
@@ -148,7 +149,7 @@ class TodoStep(db.Model):
     __tablename__ = 'todo_steps'
     
     id = db.Column(db.Integer, primary_key=True)
-    todo_id = db.Column(db.Integer, db.ForeignKey('todos.id'), nullable=False)
+    todo_id = db.Column(db.Integer, db.ForeignKey('todos.id'), nullable=False, index=True)
     title = db.Column(db.String(200), nullable=False)
     order = db.Column(db.Integer, default=0)
     completed = db.Column(db.Boolean, default=False)
@@ -172,7 +173,7 @@ class StatusHistory(db.Model):
     __tablename__ = 'status_history'
     
     id = db.Column(db.Integer, primary_key=True)
-    todo_id = db.Column(db.Integer, db.ForeignKey('todos.id'), nullable=False)
+    todo_id = db.Column(db.Integer, db.ForeignKey('todos.id'), nullable=False, index=True)
     old_status = db.Column(db.String(20))
     new_status = db.Column(db.String(20), nullable=False)
     changed_at = db.Column(db.DateTime, default=datetime.now)
@@ -194,7 +195,7 @@ class Attachment(db.Model):
     __tablename__ = 'attachments'
     
     id = db.Column(db.Integer, primary_key=True)
-    todo_id = db.Column(db.Integer, db.ForeignKey('todos.id'), nullable=False)
+    todo_id = db.Column(db.Integer, db.ForeignKey('todos.id'), nullable=False, index=True)
     filename = db.Column(db.String(255), nullable=False)  # 原始文件名
     stored_name = db.Column(db.String(255), nullable=False)  # 存储文件名
     file_size = db.Column(db.Integer)  # 文件大小(字节)
@@ -223,8 +224,8 @@ class ChatConfig(db.Model):
     model_name = db.Column(db.String(200), default='')
     system_prompt = db.Column(db.Text, default='')
     is_default = db.Column(db.Boolean, default=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=datetime.now(timezone.utc))
+    updated_at = db.Column(db.DateTime, default=datetime.now(timezone.utc), onupdate=datetime.now(timezone.utc))
     
     def to_dict(self):
         return {
@@ -249,8 +250,8 @@ class ReportTemplate(db.Model):
     description = db.Column(db.Text, default='')
     template_content = db.Column(db.Text, nullable=False)  # 模板内容，支持变量占位符
     is_default = db.Column(db.Boolean, default=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=datetime.now(timezone.utc))
+    updated_at = db.Column(db.DateTime, default=datetime.now(timezone.utc), onupdate=datetime.now(timezone.utc))
     
     def to_dict(self):
         return {
@@ -292,7 +293,7 @@ class ChatMessage(db.Model):
     session_id = db.Column(db.String(36), nullable=False, index=True)  # UUID session
     role = db.Column(db.String(20), nullable=False)  # user / assistant / system
     content = db.Column(db.Text, nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=datetime.now(timezone.utc))
     
     def to_dict(self):
         return {

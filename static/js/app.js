@@ -13,6 +13,43 @@ let filters = {
 let currentNoteTaskId = null;
 let pendingDeleteTaskId = null;
 
+
+// Toast 提示
+function showToast(msg, type='info') {
+    let toast = document.getElementById('toast-container');
+    if (!toast) {
+        toast = document.createElement('div');
+        toast.id = 'toast-container';
+        toast.style.cssText = 'position:fixed;top:20px;right:20px;z-index:10000;display:flex;flex-direction:column;gap:8px;';
+        document.body.appendChild(toast);
+    }
+    const colors = {info:'#2196F3',success:'#4CAF50',error:'#f44336',warning:'#FF9800'};
+    const el = document.createElement('div');
+    el.style.cssText = `padding:10px 20px;border-radius:6px;color:#fff;font-size:13px;background:${colors[type]||colors.info};box-shadow:0 2px 8px rgba(0,0,0,0.15);opacity:0;transition:opacity 0.3s;`;
+    el.textContent = msg;
+    toast.appendChild(el);
+    requestAnimationFrame(() => el.style.opacity = '1');
+    setTimeout(() => { el.style.opacity = '0'; setTimeout(() => el.remove(), 300); }, 2500);
+}
+
+// 确认对话框（替代 confirm）
+function showConfirm(msg) {
+    return new Promise(resolve => {
+        const overlay = document.createElement('div');
+        overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.4);z-index:10001;display:flex;align-items:center;justify-content:center;';
+        overlay.innerHTML = `<div style="background:#fff;border-radius:8px;padding:24px 32px;max-width:400px;text-align:center;box-shadow:0 4px 16px rgba(0,0,0,0.2);">
+            <div style="font-size:14px;margin-bottom:20px;line-height:1.6;">${msg}</div>
+            <div style="display:flex;gap:12px;justify-content:center;">
+                <button id="confirm-cancel" style="padding:6px 20px;border:1px solid #ddd;border-radius:4px;background:#fff;cursor:pointer;font-size:13px;">取消</button>
+                <button id="confirm-ok" style="padding:6px 20px;border:none;border-radius:4px;background:#f44336;color:#fff;cursor:pointer;font-size:13px;">确认</button>
+            </div>
+        </div>`;
+        document.body.appendChild(overlay);
+        overlay.querySelector('#confirm-cancel').onclick = () => { overlay.remove(); resolve(false); };
+        overlay.querySelector('#confirm-ok').onclick = () => { overlay.remove(); resolve(true); };
+    });
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     const today = new Date().toISOString().split('T')[0];
     document.getElementById('todo-start-date').value = today;
@@ -25,6 +62,7 @@ document.addEventListener('DOMContentLoaded', () => {
     bindAttachmentEvents();
     bindNoteEvents();
     bindDeleteConfirmEvents();
+
 });
 
 // 默认折叠所有任务
@@ -221,11 +259,11 @@ async function handleDrop(e) {
         if (response.ok) {
             await loadTodos();
         } else {
-            alert('排序更新失败');
+            showToast('排序更新失败', 'error');
         }
     } catch (error) {
         console.error('排序更新错误:', error);
-        alert('排序更新失败');
+        showToast('排序更新失败', 'error');
     }
 }
 
@@ -297,26 +335,27 @@ function renderTaskTable() {
 
         html += `
             <div class="task-row level-${task.level} ${task.is_overdue ? 'overdue-task' : ''} ${isCollapsed ? 'collapsed' : ''} ${task.status === '已完成' ? 'task-completed' : ''}" data-task-id="${task.id}" draggable="true">
-                <div class="col-drag-handle-header"></div>
-                <div class="col-task-code">${task.taskCode}</div>
+                <div class="col-task-code">
+                    ${task.taskCode}
+                    ${statusBadge}
+                    ${overdueMark}
+                </div>
                 <div class="col-task-name task-name-cell level-${task.level}" style="padding-left: ${8 + indent}px">
                     ${toggleIcon}
                     <div class="task-name-content">
                         <div class="task-name-row">
                             <span class="inline-editable-title" data-task-id="${task.id}" data-action="edit-title">${escapeHtml(task.title)}</span>
-                            ${statusBadge}
-                            ${overdueMark}
                         </div>
                         ${descText}
                         ${renderTodos(task.steps || [])}
                     </div>
                     <div class="task-row-actions">
-                        <button class="btn-add-todo-inline" data-task-id="${task.id}" data-action="add-todo-inline" title="添加待办">+todo</button>
-                        <button class="btn-add-child-inline" data-task-id="${task.id}" data-action="add-child-inline" title="增加子任务">+子任务</button>
-                        <button class="btn-note-inline ${task.has_note ? 'btn-note-active' : ''}" data-task-id="${task.id}" data-action="edit-note" title="编辑笔记">📝</button>
-                        <button class="btn-attachment-inline" data-task-id="${task.id}" data-action="manage-attachment" title="附件管理">📎${task.attachments && task.attachments.length > 0 ? `<span class="attachment-count">${task.attachments.length}</span>` : ''}</button>
-                        ${task.level === 0 ? `<button class="btn-archive-inline" data-task-id="${task.id}" data-action="archive-task" title="归档">📦归档</button>` : ''}
-                        <button class="btn-delete-inline" data-task-id="${task.id}" data-action="delete-task-inline" title="删除任务">×</button>
+                        <button class="btn-icon btn-add-todo-inline" data-task-id="${task.id}" data-action="add-todo-inline" title="添加待办">📋</button>
+                        <button class="btn-icon btn-add-child-inline" data-task-id="${task.id}" data-action="add-child-inline" title="增加子任务">➕</button>
+                        <button class="btn-icon btn-note-inline ${task.has_note ? 'btn-note-active' : ''}" data-task-id="${task.id}" data-action="edit-note" title="编辑笔记">📝</button>
+                        <button class="btn-icon btn-attachment-inline" data-task-id="${task.id}" data-action="manage-attachment" title="附件管理">📎${task.attachments && task.attachments.length > 0 ? `<span class="attachment-count">${task.attachments.length}</span>` : ''}</button>
+                        ${task.level === 0 ? `<button class="btn-icon btn-archive-inline" data-task-id="${task.id}" data-action="archive-task" title="归档">📦</button>` : ''}
+                        <button class="btn-icon btn-delete-inline" data-task-id="${task.id}" data-action="delete-task-inline" title="删除任务">🗑️</button>
                     </div>
                 </div>
                 <div class="col-priority">
@@ -337,7 +376,6 @@ function renderTaskTable() {
                 </div>
                 <div class="col-created-at" title="创建时间：${task.created_at || ''}">${task.created_at ? task.created_at.substring(0, 10) : ''}</div>
                 <div class="col-date">
-                    ${task.is_auto_date ? `<span class="auto-date-marker" title="自动根据子任务计算">🔄</span>` : ''}
                     <input type="date" class="row-date-input ${task.is_auto_date ? 'auto-date' : ''}" data-task-id="${task.id}" data-field="start_date" data-action="edit-date" value="${task.start_date || ''}" ${task.is_auto_date ? 'readonly' : ''}>
                 </div>
                 <div class="col-date">
@@ -506,8 +544,9 @@ function renderTaskTable() {
         tbody._clickBound = true;
     }
     
-    // 初始化列宽拖拽
-    initColumnResizer();
+    // 初始化列宽拖拽（已禁用，使用固定宽度）
+    // initColumnResizer();
+
 }
 
 // Esc 键取消选中 / 关闭弹窗
@@ -677,7 +716,7 @@ function startTitleEdit(span) {
         if (newTitle && newTitle !== currentTitle) {
             saveField(taskId, 'title', newTitle);
         } else if (!newTitle) {
-            alert('标题不能为空');
+            showToast('标题不能为空', 'warning');
             loadTodos(); // 恢复原状
         }
     };
@@ -726,7 +765,7 @@ async function promptAddChild(taskId) {
         });
         loadTodos();
     } catch (error) {
-        alert('添加子任务失败');
+        showToast('添加子任务失败', 'error');
     }
 }
 
@@ -757,11 +796,11 @@ async function promptAddTodo(taskId) {
         if (response.ok) {
             loadTodos();
         } else {
-            alert('添加待办失败');
+            showToast('添加待办失败', 'error');
         }
     } catch (error) {
         console.error('添加待办失败:', error);
-        alert('添加待办失败');
+        showToast('添加待办失败', 'error');
     }
 }
 
@@ -777,17 +816,17 @@ async function toggleTodo(todoId, completed) {
         if (response.ok) {
             loadTodos();
         } else {
-            alert('更新待办状态失败');
+            showToast('更新待办状态失败', 'error');
         }
     } catch (error) {
         console.error('更新待办状态失败:', error);
-        alert('更新待办状态失败');
+        showToast('更新待办状态失败', 'error');
     }
 }
 
 // 删除 todo
 async function deleteTodo(todoId) {
-    if (!confirm('确定删除这个待办？')) return;
+    if (!await showConfirm('确定删除这个待办？')) return;
     
     try {
         const response = await fetch(`/api/steps/${todoId}`, {
@@ -797,34 +836,34 @@ async function deleteTodo(todoId) {
         if (response.ok) {
             loadTodos();
         } else {
-            alert('删除待办失败');
+            showToast('删除待办失败', 'error');
         }
     } catch (error) {
         console.error('删除待办失败:', error);
-        alert('删除待办失败');
+        showToast('删除待办失败', 'error');
     }
 }
 
 // 删除任务
 async function deleteTask(taskId) {
-    if (!confirm('确定删除此任务及其所有子任务？\n此操作不可恢复！')) return;
+    if (!await showConfirm('确定删除此任务及其所有子任务？<br>此操作不可恢复！')) return;
     try {
         await fetch(`/api/todos/${taskId}`, { method: 'DELETE' });
         loadTodos();
     } catch (error) {
         console.error('删除失败:', error);
-        alert('删除任务失败');
+        showToast('删除任务失败', 'error');
     }
 }
 
 // 归档任务
 async function archiveTask(taskId) {
-    if (!confirm('确定归档此任务及其所有子任务？\n归档后仅可查看和修改描述。')) return;
+    if (!await showConfirm('确定归档此任务及其所有子任务？<br>归档后仅可查看和修改描述。')) return;
     try {
         const response = await fetch(`/api/todos/${taskId}/archive`, { method: 'POST' });
         const result = await response.json();
         if (response.ok) {
-            alert('归档成功');
+            showToast('归档成功', 'success');
             loadTodos();
             loadArchivedTodos();
         } else {
@@ -832,18 +871,18 @@ async function archiveTask(taskId) {
         }
     } catch (error) {
         console.error('归档失败:', error);
-        alert('归档失败');
+        showToast('归档失败', 'error');
     }
 }
 
 // 还原任务
 async function restoreTask(taskId) {
-    if (!confirm('确定还原此任务？\n还原后可继续编辑。')) return;
+    if (!await showConfirm('确定还原此任务？<br>还原后可继续编辑。')) return;
     try {
         const response = await fetch(`/api/todos/${taskId}/restore`, { method: 'POST' });
         const result = await response.json();
         if (response.ok) {
-            alert('还原成功');
+            showToast('还原成功', 'success');
             loadTodos();
             loadArchivedTodos();
         } else {
@@ -851,7 +890,7 @@ async function restoreTask(taskId) {
         }
     } catch (error) {
         console.error('还原失败:', error);
-        alert('还原失败');
+        showToast('还原失败', 'error');
     }
 }
 
@@ -951,11 +990,11 @@ function viewArchivedDescription(taskId) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ description: newDesc })
         }).then(() => {
-            alert('描述已更新');
+            showToast('描述已更新', 'success');
             loadArchivedTodos();
         }).catch(err => {
             console.error('更新描述失败:', err);
-            alert('更新描述失败');
+            showToast('更新描述失败', 'error');
         });
     }
 }
@@ -1004,7 +1043,7 @@ function bindAttachmentEvents() {
             });
             const result = await response.json();
             if (response.ok) {
-                alert('上传成功');
+                showToast('上传成功', 'success');
                 loadAttachments(currentAttachmentTaskId);
                 loadTodos(); // 刷新主列表以更新附件数量
             } else {
@@ -1012,7 +1051,7 @@ function bindAttachmentEvents() {
             }
         } catch (error) {
             console.error('上传失败:', error);
-            alert('上传失败');
+            showToast('上传失败', 'error');
         }
         
         fileInput.value = '';
@@ -1086,20 +1125,20 @@ function renderAttachments(attachments) {
         btn.addEventListener('click', async (e) => {
             e.stopPropagation();
             const attId = parseInt(btn.getAttribute('data-attachment-id'));
-            if (!confirm('确定删除此附件？')) return;
+            if (!await showConfirm('确定删除此附件？')) return;
             
             try {
                 const response = await fetch(`/api/attachments/${attId}`, { method: 'DELETE' });
                 if (response.ok) {
-                    alert('删除成功');
+                    showToast('删除成功', 'success');
                     loadAttachments(currentAttachmentTaskId);
                     loadTodos();
                 } else {
-                    alert('删除失败');
+                    showToast('删除失败', 'error');
                 }
             } catch (error) {
                 console.error('删除失败:', error);
-                alert('删除失败');
+                showToast('删除失败', 'error');
             }
         });
     });
@@ -1120,7 +1159,7 @@ function formatFileSize(bytes) {
 
 // 保存字段（标题、描述、优先级、日期）
 async function saveField(taskId, field, value) {
-    if (field === 'title' && !value) { alert('标题不能为空'); return; }
+    if (field === 'title' && !value) { showToast('标题不能为空', 'warning'); return; }
     try {
         await fetch(`/api/todos/${taskId}`, {
             method: 'PUT',
@@ -1138,7 +1177,6 @@ async function saveStatus(taskId, newStatus) {
     try {
         const task = allTasks.find(t => t.id === taskId);
         const body = { status: newStatus, remark: '手动更新状态' };
-        // 状态从待开始转为进行中时，自动设置开始时间为当日
         if (task && task.status === '待开始' && newStatus === '进行中') {
             body.start_date = new Date().toISOString().split('T')[0];
         }
@@ -1147,9 +1185,11 @@ async function saveStatus(taskId, newStatus) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(body)
         });
+        showToast('状态已更新', 'success');
         loadTodos();
     } catch (error) {
         console.error('更新状态失败:', error);
+        showToast('更新状态失败', 'error');
     }
 }
 
@@ -1196,7 +1236,7 @@ async function createTodo() {
         closeCreateModal();
         loadTodos();
     } catch (error) {
-        alert('创建任务失败');
+        showToast('创建任务失败', 'error');
     }
 }
 
@@ -1316,12 +1356,12 @@ async function saveNote() {
         const task = allTasks.find(t => t.id === currentNoteTaskId);
         if (task) task.has_note = content.trim().length > 0;
         
-        alert('笔记已保存');
+        showToast('笔记已保存', 'success');
         closeNoteModal();
         renderTaskTable();
     } catch (err) {
         console.error('保存笔记失败:', err);
-        alert('保存失败: ' + err.message);
+        showToast('保存失败: ' + err.message, 'error');
     }
 }
 
@@ -1364,7 +1404,7 @@ async function confirmDelete() {
         loadArchivedTodos();
     } catch (err) {
         console.error('删除失败:', err);
-        alert('删除失败: ' + err.message);
+        showToast('删除失败: ' + err.message, 'error');
     }
 }
 

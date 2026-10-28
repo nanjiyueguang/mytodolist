@@ -1,11 +1,22 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Todo 任务管理</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=20261028">
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    
+    
+    
+    
+    <script>
+        // marked.js CDN 加载失败时提供降级
+        if (typeof marked === 'undefined') {
+            window.marked = { parse: function(text) { return '<pre>' + text.replace(/</g,'&lt;') + '</pre>'; } };
+            console.warn('marked.js CDN 加载失败，使用纯文本预览');
+        }
+    </script>
 </head>
 <body>
     <div class="container">
@@ -39,11 +50,11 @@
             <div class="export-form">
                 <div class="form-group">
                     <label>开始日期：</label>
-                    <input type="date" id="export-start-date" lang="en">
+                    <input type="date" id="export-start-date" >
                 </div>
                 <div class="form-group">
                     <label>结束日期：</label>
-                    <input type="date" id="export-end-date" lang="en">
+                    <input type="date" id="export-end-date" >
                 </div>
                 <div class="export-actions">
                     <button id="btn-confirm-export" class="btn btn-primary">确认导出</button>
@@ -79,11 +90,11 @@
                         </div>
                         <div class="modal-form-group">
                             <label>开始日期</label>
-                            <input type="date" id="todo-start-date" class="modal-input" lang="en">
+                            <input type="date" id="todo-start-date" class="modal-input" >
                         </div>
                         <div class="modal-form-group">
                             <label>完成日期</label>
-                            <input type="date" id="todo-end-date" class="modal-input" lang="en">
+                            <input type="date" id="todo-end-date" class="modal-input" >
                         </div>
                     </div>
                 </div>
@@ -97,40 +108,13 @@
         <!-- 任务列表（默认折叠） -->
         <div class="task-list-container">
             <div class="table-header">
-                <div class="col-drag-handle-header"></div>
                 <div class="col-task-code">任务编码</div>
                 <div class="col-task-name">任务名称</div>
-                <div class="col-priority">
-                    <select id="filter-priority" class="filter-select">
-                        <option value="">优先级</option>
-                        <option value="高">🔴 高</option>
-                        <option value="中">🟡 中</option>
-                        <option value="低">🔵 低</option>
-                    </select>
-                </div>
-                <div class="col-status">
-                    <div class="multi-filter" id="filter-status">
-                        <select class="filter-select" id="filter-status-btn">
-                            <option>状态</option>
-                        </select>
-                        <div class="multi-filter-dropdown" id="filter-status-dropdown" style="display:none;">
-                            <label><input type="checkbox" value="待开始"> 待开始</label>
-                            <label><input type="checkbox" value="进行中"> 进行中</label>
-                            <label><input type="checkbox" value="暂挂"> 暂挂</label>
-                            <label><input type="checkbox" value="已完成"> 已完成</label>
-                            <label><input type="checkbox" value="已取消"> 已取消</label>
-                        </div>
-                    </div>
-                </div>
+                <div class="col-priority">优先级</div>
+                <div class="col-status">状态</div>
                 <div class="col-created-at">创建时间</div>
-                <div class="col-date">
-                    <label class="filter-label">开始时间</label>
-                    <input type="date" id="filter-start-date" class="filter-date" lang="en">
-                </div>
-                <div class="col-date">
-                    <label class="filter-label">完成时间</label>
-                    <input type="date" id="filter-end-date" class="filter-date" lang="en">
-                </div>
+                <div class="col-date">开始时间</div>
+                <div class="col-date">完成时间</div>
                 <div class="col-duration">工期(天)</div>
             </div>
             <div id="task-table-body" class="table-body"></div>
@@ -205,6 +189,6 @@
         </div>
     </div>
 
-    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/app.js') }}?v=20261028"></script>
 </body>
 </html>

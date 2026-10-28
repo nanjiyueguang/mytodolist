@@ -1,7 +1,7 @@
 from flask import Flask, render_template, request, jsonify, send_file, send_from_directory, Response, stream_with_context
 from models import db, Todo, TodoStep, StatusHistory, Attachment, ChatConfig, ReportTemplate, ChatMessage, TodoNote
 from config import Config
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import openpyxl
 from openpyxl.styles import Alignment, Font, PatternFill
 from io import BytesIO
@@ -11,16 +11,39 @@ import shutil
 import requests
 import json
 
+# 简单的请求频率限制
+from functools import wraps
+import time
+
+_rate_limit_store = {}
+
+def rate_limit(max_requests=30, window_seconds=60):
+    def decorator(f):
+        @wraps(f)
+        def wrapped(*args, **kwargs):
+            client_ip = request.remote_addr or 'unknown'
+            key = f"{f.__name__}:{client_ip}"
+            now = time.time()
+            if key not in _rate_limit_store:
+                _rate_limit_store[key] = []
+            # 清理过期记录
+            _rate_limit_store[key] = [t for t in _rate_limit_store[key] if now - t < window_seconds]
+            if len(_rate_limit_store[key]) >= max_requests:
+                return jsonify({'error': '请求过于频繁，请稍后再试'}), 429
+            _rate_limit_store[key].append(now)
+            return f(*args, **kwargs)
+        return wrapped
+    return decorator
+
 app = Flask(__name__)
 app.config.from_object(Config)
 
 # 禁止缓存静态文件（开发阶段）
 @app.after_request
 def add_no_cache_headers(response):
-    if request.path.startswith('/static/'):
-        response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
-        response.headers['Pragma'] = 'no-cache'
-        response.headers['Expires'] = '0'
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
     return response
 
 db.init_app(app)
@@ -60,6 +83,8 @@ def create_todo():
     data = request.json
     if not data.get('title'):
         return jsonify({'error': '标题不能为空'}), 400
+    if len(str(data['title'])) > 200:
+        return jsonify({'error': '标题不能超过200字符'}), 400
     
     # 计算排序值：同级别中最大值 + 1
     if data.get('parent_id'):
@@ -92,7 +117,7 @@ def create_todo():
             old_status = parent.status
             parent.status = '进行中'
             parent.progress = 0
-            parent.updated_at = datetime.utcnow()
+            parent.updated_at = datetime.now(timezone.utc)
             history = StatusHistory(
                 todo_id=parent.id,
                 old_status=old_status,
@@ -140,7 +165,7 @@ def update_parent_dates(todo_id):
     if all_ends:
         parent.end_date = max(all_ends)
     
-    parent.updated_at = datetime.utcnow()
+    parent.updated_at = datetime.now(timezone.utc)
     db.session.commit()
     
     # 递归向上
@@ -172,7 +197,7 @@ def archive_todo(todo_id):
     # 递归归档主任务及所有子任务
     def archive_recursive(t):
         t.is_archived = True
-        t.archived_at = datetime.utcnow()
+        t.archived_at = datetime.now(timezone.utc)
         for child in t.children.all():
             archive_recursive(child)
     
@@ -223,6 +248,15 @@ def upload_attachment(todo_id):
     if file_size > Config.MAX_ATTACHMENT_SIZE:
         return jsonify({'error': f'文件大小超过限制（最大{Config.MAX_ATTACHMENT_SIZE // 1024 // 1024}MB）'}), 400
     
+    # 检查 MIME 类型（防止伪装文件）
+    allowed_extensions = {'.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', 
+                          '.txt', '.md', '.csv', '.json', '.xml', '.zip', '.rar', '.7z',
+                          '.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg',
+                          '.mp3', '.mp4', '.avi', '.mov', '.wmv', '.flv'}
+    ext = os.path.splitext(file.filename)[1].lower()
+    if ext not in allowed_extensions:
+        return jsonify({'error': f'不支持的文件类型: {ext}'}), 400
+    
     # 生成存储文件名
     ext = os.path.splitext(file.filename)[1]
     stored_name = f"{uuid.uuid4().hex}{ext}"
@@ -255,6 +289,9 @@ def get_attachments(todo_id):
 def download_attachment(attachment_id):
     """下载附件"""
     attachment = Attachment.query.get_or_404(attachment_id)
+    file_path = os.path.join(Config.ATTACHMENT_DIR, attachment.stored_name)
+    if not os.path.exists(file_path):
+        return jsonify({'error': '附件文件已丢失'}), 404
     return send_from_directory(
         Config.ATTACHMENT_DIR,
         attachment.stored_name,
@@ -283,9 +320,18 @@ def update_todo(todo_id):
     todo = Todo.query.get_or_404(todo_id)
     data = request.json
     
-    todo.title = data.get('title', todo.title)
-    todo.description = data.get('description', todo.description)
-    todo.priority = data.get('priority', todo.priority)
+    if 'title' in data:
+        if not data['title']:
+            return jsonify({'error': '标题不能为空'}), 400
+        if len(str(data['title'])) > 200:
+            return jsonify({'error': '标题不能超过200字符'}), 400
+        todo.title = data['title']
+    if 'description' in data:
+        todo.description = data['description']
+    if 'priority' in data:
+        if data['priority'] not in Config.STATUS_OPTIONS and data['priority'] not in ('高', '中', '低'):
+            return jsonify({'error': '无效的优先级'}), 400
+        todo.priority = data['priority']
     
     # 如果进度被设置为100%，自动标记为已完成
     if 'progress' in data and data['progress'] == 100:
@@ -305,7 +351,7 @@ def update_todo(todo_id):
     elif 'end_date' in data:
         todo.end_date = None
     
-    todo.updated_at = datetime.utcnow()
+    todo.updated_at = datetime.now(timezone.utc)
     db.session.commit()
     
     # 递归更新父任务日期
@@ -334,7 +380,7 @@ def reorder_todos():
         todo = Todo.query.get(todo_id)
         if todo:
             todo.sort_order = sort_order
-            todo.updated_at = datetime.utcnow()
+            todo.updated_at = datetime.now(timezone.utc)
     
     db.session.commit()
     return jsonify({'message': '排序更新成功'})
@@ -352,7 +398,7 @@ def update_status(todo_id):
     
     old_status = todo.status
     todo.status = new_status
-    todo.updated_at = datetime.utcnow()
+    todo.updated_at = datetime.now(timezone.utc)
     
     # 完成时自动设置进度100%，结束时间为当日
     if new_status == '已完成':
@@ -391,7 +437,7 @@ def _auto_update_parent_status(parent_id):
     if any_in_progress and parent.status in ('待开始', '已完成'):
         old_status = parent.status
         parent.status = '进行中'
-        parent.updated_at = datetime.utcnow()
+        parent.updated_at = datetime.now(timezone.utc)
         history = StatusHistory(
             todo_id=parent.id,
             old_status=old_status,
@@ -407,7 +453,7 @@ def _auto_update_parent_status(parent_id):
         old_status = parent.status
         parent.status = '已完成'
         parent.progress = 100
-        parent.updated_at = datetime.utcnow()
+        parent.updated_at = datetime.now(timezone.utc)
         history = StatusHistory(
             todo_id=parent.id,
             old_status=old_status,
@@ -462,12 +508,12 @@ def save_note(todo_id):
     note = TodoNote.query.filter_by(todo_id=todo_id).first()
     if note:
         note.content = content
-        note.updated_at = datetime.utcnow()
+        note.updated_at = datetime.now(timezone.utc)
     else:
         note = TodoNote(todo_id=todo_id, content=content)
         db.session.add(note)
     
-    todo.updated_at = datetime.utcnow()
+    todo.updated_at = datetime.now(timezone.utc)
     db.session.commit()
     return jsonify(note.to_dict())
 
@@ -481,6 +527,8 @@ def add_step(todo_id):
     
     if not data.get('title'):
         return jsonify({'error': '步骤标题不能为空'}), 400
+    if len(str(data['title'])) > 200:
+        return jsonify({'error': '步骤标题不能超过200字符'}), 400
     
     max_order = db.session.query(db.func.max(TodoStep.order)).filter_by(todo_id=todo_id).scalar() or 0
     
@@ -503,7 +551,7 @@ def update_step(step_id):
         step.title = data['title']
     if 'completed' in data:
         step.completed = data['completed']
-        step.completed_at = datetime.utcnow() if data['completed'] else None
+        step.completed_at = datetime.now(timezone.utc) if data['completed'] else None
     if 'order' in data:
         step.order = data['order']
     
@@ -737,6 +785,12 @@ def import_todos():
                 elif data['status'] == '已取消':
                     initial_progress = 0
                 
+                # 计算 sort_order
+                if parent_id:
+                    max_order = db.session.query(db.func.max(Todo.sort_order)).filter_by(parent_id=parent_id).scalar() or 0
+                else:
+                    max_order = db.session.query(db.func.max(Todo.sort_order)).filter_by(parent_id=None).scalar() or 0
+                
                 todo = Todo(
                     title=str(data['title'])[:200],
                     description=str(data.get('description', '') or ''),
@@ -745,7 +799,8 @@ def import_todos():
                     progress=initial_progress,
                     start_date=data.get('start_date'),
                     end_date=data.get('end_date'),
-                    parent_id=parent_id
+                    parent_id=parent_id,
+                    sort_order=max_order + 1
                 )
                 db.session.add(todo)
                 db.session.flush()
@@ -792,12 +847,24 @@ def export_todos():
     start_date = request.args.get('start_date')
     end_date = request.args.get('end_date')
     
-    # 构建查询（支持日期筛选，不选则全量）
+    # 构建查询（支持日期筛选，不选则全量，按任务日期范围筛选）
     query = Todo.query.filter_by(parent_id=None)
     if start_date:
-        query = query.filter(Todo.created_at >= datetime.strptime(start_date, '%Y-%m-%d'))
+        query = query.filter(
+            db.or_(
+                Todo.start_date >= datetime.strptime(start_date, '%Y-%m-%d').date(),
+                Todo.end_date >= datetime.strptime(start_date, '%Y-%m-%d').date(),
+                Todo.start_date == None
+            )
+        )
     if end_date:
-        query = query.filter(Todo.created_at <= datetime.strptime(end_date, '%Y-%m-%d') + timedelta(days=1))
+        query = query.filter(
+            db.or_(
+                Todo.end_date <= datetime.strptime(end_date, '%Y-%m-%d').date(),
+                Todo.start_date <= datetime.strptime(end_date, '%Y-%m-%d').date(),
+                Todo.end_date == None
+            )
+        )
     
     # 获取顶层任务（树状）
     top_todos = query.order_by(Todo.created_at.asc()).all()
@@ -1050,25 +1117,37 @@ def delete_template(template_id):
 
 @app.route('/api/chat/sessions', methods=['GET'])
 def get_chat_sessions():
-    """获取所有会话列表"""
-    # 获取所有有消息的 session_id
+    """获取所有会话列表（优化：一次性 JOIN 查询）"""
     sessions = db.session.query(
         ChatMessage.session_id,
         db.func.min(ChatMessage.created_at).label('created_at'),
         db.func.max(ChatMessage.created_at).label('updated_at')
     ).group_by(ChatMessage.session_id).order_by(db.func.max(ChatMessage.created_at).desc()).all()
     
+    # 批量获取所有 session 的第一条用户消息
+    session_ids = [s.session_id for s in sessions]
+    if session_ids:
+        first_msgs = db.session.query(
+            ChatMessage.session_id,
+            ChatMessage.content
+        ).filter(
+            ChatMessage.session_id.in_(session_ids),
+            ChatMessage.role == 'user'
+        ).order_by(ChatMessage.created_at.asc()).all()
+        
+        # 每个 session 取第一条
+        title_map = {}
+        for msg in first_msgs:
+            if msg.session_id not in title_map:
+                title_map[msg.session_id] = msg.content[:30]
+    else:
+        title_map = {}
+    
     result = []
     for s in sessions:
-        # 获取第一条用户消息作为标题
-        first_msg = ChatMessage.query.filter_by(
-            session_id=s.session_id, role='user'
-        ).order_by(ChatMessage.created_at.asc()).first()
-        title = first_msg.content[:30] if first_msg else '新对话'
-        
         result.append({
             'session_id': s.session_id,
-            'title': title,
+            'title': title_map.get(s.session_id, '新对话'),
             'created_at': s.created_at.strftime('%Y-%m-%d %H:%M:%S'),
             'updated_at': s.updated_at.strftime('%Y-%m-%d %H:%M:%S')
         })
@@ -1085,8 +1164,8 @@ def create_chat_session():
     return jsonify({
         'session_id': session_id,
         'title': title,
-        'created_at': datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S'),
-        'updated_at': datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+        'created_at': datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S'),
+        'updated_at': datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
     }), 201
 
 @app.route('/api/chat/sessions/<session_id>', methods=['DELETE'])
@@ -1210,6 +1289,10 @@ def get_weekly_data():
             'is_ended_this_week': t.id in [task.id for task in ended_this_week]
         }
     
+    # 批量预加载任务标题，避免 N+1
+    change_todo_ids = [c.todo_id for c in status_changes]
+    todo_map = {t.id: t.title for t in Todo.query.filter(Todo.id.in_(change_todo_ids)).all()} if change_todo_ids else {}
+    
     return jsonify({
         'week_range': f"{monday.strftime('%Y-%m-%d')} ~ {sunday.strftime('%Y-%m-%d')}",
         'total_tasks': stats['total'],
@@ -1226,7 +1309,7 @@ def get_weekly_data():
         'in_progress_tasks': [{'title': t.title, 'priority': t.priority, 'progress': t.progress} for t in in_progress_tasks],
         'pending_tasks': [{'title': t.title, 'priority': t.priority} for t in pending_tasks],
         'status_changes': [{
-            'todo_title': Todo.query.get(change.todo_id).title if Todo.query.get(change.todo_id) else '未知任务',
+            'todo_title': todo_map.get(change.todo_id, '未知任务'),
             'old_status': change.old_status or '无',
             'new_status': change.new_status,
             'changed_at': change.changed_at.strftime('%Y-%m-%d %H:%M'),
@@ -1235,6 +1318,7 @@ def get_weekly_data():
     })
 
 @app.route('/api/chat/completions', methods=['POST'])
+@rate_limit(max_requests=10, window_seconds=60)
 def chat_completions():
     """流式聊天接口 - 调用外部 LLM API"""
     data = request.json
