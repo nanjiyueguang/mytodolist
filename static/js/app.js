@@ -279,19 +279,15 @@ function renderTaskTable() {
         const indent = task.level * 20;
         const overdueMark = task.is_overdue ? '<span class="overdue-badge">逾期</span>' : '';
         
-        // 方案A：有子任务显示完成数/总数，叶子任务不显示进度条
+        // 进度标签：有子任务时显示完成数/总数标签
         let progressDisplay = '';
         if (hasChildren) {
             const stats = task.children_stats || { total: 0, completed: 0 };
             const total = stats.total || 0;
             const completed = stats.completed || 0;
-            const percent = total > 0 ? Math.round(completed / total * 100) : 0;
-            progressDisplay = `
-                <div class="progress-bar-container">
-                    <div class="progress-bar" style="width: ${percent}%; background: ${getProgressColor(percent)};"></div>
-                    <span class="progress-text">${completed}/${total}</span>
-                </div>
-            `;
+            if (total > 0) {
+                progressDisplay = `<span class="progress-badge">${completed}/${total}</span>`;
+            }
         }
         
         const isCollapsed = collapsedTasks.has(task.id);
@@ -725,10 +721,11 @@ async function promptAddChild(taskId) {
     const title = prompt('输入子任务标题：');
     if (!title || !title.trim()) return;
     try {
+        const today = new Date().toISOString().split('T')[0];
         await fetch('/api/todos', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ title: title.trim(), parent_id: taskId })
+            body: JSON.stringify({ title: title.trim(), parent_id: taskId, start_date: today, end_date: today })
         });
         loadTodos();
     } catch (error) {
@@ -1142,10 +1139,16 @@ async function saveField(taskId, field, value) {
 // 保存状态（走专门的 status 接口）
 async function saveStatus(taskId, newStatus) {
     try {
+        const task = allTasks.find(t => t.id === taskId);
+        const body = { status: newStatus, remark: '手动更新状态' };
+        // 状态从待开始转为进行中时，自动设置开始时间为当日
+        if (task && task.status === '待开始' && newStatus === '进行中') {
+            body.start_date = new Date().toISOString().split('T')[0];
+        }
         await fetch(`/api/todos/${taskId}/status`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ status: newStatus, remark: '手动更新状态' })
+            body: JSON.stringify(body)
         });
         loadTodos();
     } catch (error) {

@@ -801,6 +801,18 @@ header h1 {
     vertical-align: middle;
 }
 
+/* 进度标签 */
+.progress-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    font-size: 11px;
+    font-weight: 600;
+    color: #fff;
+    background: #2196F3;
+    border-radius: 3px;
+    vertical-align: middle;
+}
+
 /* 选中行左侧编号高亮 */
 .task-row.selected .col-task-code {
     color: #2e7d32;
