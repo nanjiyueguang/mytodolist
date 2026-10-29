@@ -21,7 +21,7 @@ def rate_limit(max_requests=30, window_seconds=60):
     def decorator(f):
         @wraps(f)
         def wrapped(*args, **kwargs):
-            client_ip = request.remote_addr or 'unknown'
+            client_ip = request.headers.get('X-Forwarded-For', request.remote_addr or 'unknown').split(',')[0].strip()
             key = f"{f.__name__}:{client_ip}"
             now = time.time()
             if key not in _rate_limit_store:
@@ -404,7 +404,7 @@ def update_status(todo_id):
     if new_status == '已完成':
         todo.progress = 100
         if not todo.end_date:
-            todo.end_date = datetime.now().date()
+            todo.end_date = datetime.now(timezone.utc).date()
     elif new_status == '已取消':
         todo.progress = 0
     
@@ -1002,7 +1002,7 @@ def export_todos():
         output,
         mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         as_attachment=True,
-        download_name=f'todo_export_{datetime.now().strftime("%Y%m%d_%H%M%S")}.xlsx'
+        download_name=f'todo_export_{datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")}.xlsx'
     )
 
 # ============ 聊天智能体 API ============
@@ -1124,24 +1124,26 @@ def get_chat_sessions():
         db.func.max(ChatMessage.created_at).label('updated_at')
     ).group_by(ChatMessage.session_id).order_by(db.func.max(ChatMessage.created_at).desc()).all()
     
-    # 批量获取所有 session 的第一条用户消息
+    # 批量获取所有 session 的第一条用户消息（按 session_id 分组取最早）
     session_ids = [s.session_id for s in sessions]
+    title_map = {}
     if session_ids:
-        first_msgs = db.session.query(
+        # 子查询：每个 session 的最早 user 消息 ID
+        subq = db.session.query(
             ChatMessage.session_id,
-            ChatMessage.content
+            db.func.min(ChatMessage.id).label('min_id')
         ).filter(
             ChatMessage.session_id.in_(session_ids),
             ChatMessage.role == 'user'
-        ).order_by(ChatMessage.created_at.asc()).all()
+        ).group_by(ChatMessage.session_id).subquery()
         
-        # 每个 session 取第一条
-        title_map = {}
+        first_msgs = db.session.query(
+            ChatMessage.session_id,
+            ChatMessage.content
+        ).join(subq, ChatMessage.id == subq.c.min_id).all()
+        
         for msg in first_msgs:
-            if msg.session_id not in title_map:
-                title_map[msg.session_id] = msg.content[:30]
-    else:
-        title_map = {}
+            title_map[msg.session_id] = msg.content[:30]
     
     result = []
     for s in sessions:
@@ -1202,12 +1204,12 @@ def get_weekly_data():
         except ValueError:
             return jsonify({'error': '日期格式错误，应为 YYYY-MM-DD'}), 400
     else:
-        today = datetime.now().date()
+        today = datetime.now(timezone.utc).date()
         monday = today - timedelta(days=today.weekday())
         sunday = monday + timedelta(days=6)
     
-    week_start = datetime.combine(monday, datetime.min.time())
-    week_end = datetime.combine(sunday, datetime.max.time())
+    week_start = datetime.combine(monday, datetime.min.time(), tzinfo=timezone.utc)
+    week_end = datetime.combine(sunday, datetime.max.time(), tzinfo=timezone.utc)
     
     # 1. 本周有状态变更的任务
     status_changes = StatusHistory.query.filter(
@@ -1215,32 +1217,32 @@ def get_weekly_data():
         StatusHistory.changed_at <= week_end
     ).order_by(StatusHistory.changed_at.desc()).all()
     
-    # 2. 本周创建的任务
+    # 2. 本周创建的任务（包含已归档）
     created_this_week = Todo.query.filter(
         Todo.created_at >= week_start,
-        Todo.created_at <= week_end,
-        Todo.is_archived == False
+        Todo.created_at <= week_end
     ).all()
     
-    # 3. 本周开始的任务（start_date 在本周）
+    # 3. 本周开始的任务（start_date 在本周，包含已归档）
     started_this_week = Todo.query.filter(
         Todo.start_date >= monday,
-        Todo.start_date <= sunday,
-        Todo.is_archived == False
+        Todo.start_date <= sunday
     ).all()
     
-    # 4. 本周完成的任务（状态变为已完成的时间在本周）
+    # 4. 本周完成的任务（最终状态为已完成，且本周有状态变更记录）
     completed_this_week_ids = set()
     for change in status_changes:
         if change.new_status == '已完成':
-            completed_this_week_ids.add(change.todo_id)
+            # 检查该任务当前是否仍为已完成状态
+            todo = Todo.query.get(change.todo_id)
+            if todo and todo.status == '已完成':
+                completed_this_week_ids.add(change.todo_id)
     completed_this_week = Todo.query.filter(Todo.id.in_(completed_this_week_ids)).all() if completed_this_week_ids else []
     
-    # 5. 本周结束的任务（end_date 在本周）
+    # 5. 本周结束的任务（end_date 在本周，包含已归档）
     ended_this_week = Todo.query.filter(
         Todo.end_date >= monday,
-        Todo.end_date <= sunday,
-        Todo.is_archived == False
+        Todo.end_date <= sunday
     ).all()
     
     # 合并所有本周相关任务（去重）
@@ -1252,25 +1254,36 @@ def get_weekly_data():
     
     weekly_tasks = Todo.query.filter(Todo.id.in_(weekly_task_ids)).all() if weekly_task_ids else []
     
-    # 当前进行中的任务
-    in_progress_tasks = Todo.query.filter_by(status='进行中', is_archived=False).all()
+    # 当前进行中的任务（包含已归档）
+    in_progress_tasks = Todo.query.filter_by(status='进行中').all()
     
-    # 所有未完成任务
+    # 所有未完成任务（包含已归档）
     pending_tasks = Todo.query.filter(
-        Todo.status.in_(['待开始', '暂挂']),
-        Todo.is_archived == False
+        Todo.status.in_(['待开始', '暂挂'])
     ).all()
     
-    # 统计
-    all_todos = Todo.query.filter_by(is_archived=False).all()
+    # 统计（时间范围内的任务，包含已归档）
+    range_todos = Todo.query.filter(
+        db.or_(
+            Todo.created_at.between(week_start, week_end),
+            Todo.start_date.between(monday, sunday),
+            Todo.end_date.between(monday, sunday),
+            Todo.id.in_(weekly_task_ids) if weekly_task_ids else False
+        )
+    ).all()
     stats = {
-        'total': len(all_todos),
-        'completed': len([t for t in all_todos if t.status == '已完成']),
-        'in_progress': len([t for t in all_todos if t.status == '进行中']),
-        'pending': len([t for t in all_todos if t.status == '待开始']),
-        'hold': len([t for t in all_todos if t.status == '暂挂']),
-        'cancelled': len([t for t in all_todos if t.status == '已取消'])
+        'total': len(range_todos),
+        'completed': len([t for t in range_todos if t.status == '已完成']),
+        'in_progress': len([t for t in range_todos if t.status == '进行中']),
+        'pending': len([t for t in range_todos if t.status == '待开始']),
+        'hold': len([t for t in range_todos if t.status == '暂挂']),
+        'cancelled': len([t for t in range_todos if t.status == '已取消'])
     }
+    
+    # 预构建 ID 集合（性能优化）
+    created_ids = {t.id for t in created_this_week}
+    started_ids = {t.id for t in started_this_week}
+    ended_ids = {t.id for t in ended_this_week}
     
     # 构建任务详情（标注本周相关属性）
     def task_to_detail(t):
@@ -1283,10 +1296,10 @@ def get_weekly_data():
             'start_date': t.start_date.strftime('%Y-%m-%d') if t.start_date else None,
             'end_date': t.end_date.strftime('%Y-%m-%d') if t.end_date else None,
             'created_at': t.created_at.strftime('%Y-%m-%d %H:%M') if t.created_at else None,
-            'is_created_this_week': t.id in [task.id for task in created_this_week],
-            'is_started_this_week': t.id in [task.id for task in started_this_week],
+            'is_created_this_week': t.id in created_ids,
+            'is_started_this_week': t.id in started_ids,
             'is_completed_this_week': t.id in completed_this_week_ids,
-            'is_ended_this_week': t.id in [task.id for task in ended_this_week]
+            'is_ended_this_week': t.id in ended_ids
         }
     
     # 批量预加载任务标题，避免 N+1
@@ -1331,6 +1344,9 @@ def chat_completions():
         return jsonify({'error': '缺少必要参数'}), 400
     
     config = ChatConfig.query.get_or_404(config_id)
+    
+    if not config.api_key:
+        return jsonify({'error': '模型配置缺少 API Key，请先配置'}), 400
     
     # 保存用户消息
     user_msg = ChatMessage(session_id=session_id, role='user', content=user_message)

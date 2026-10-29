@@ -324,8 +324,8 @@
                                 appendStreamingChunk($contentEl, fullText);
                             }
                             if (parsed.error) {
-                                fullText += `\n\n⚠️ 错误: ${parsed.error}`;
-                                appendStreamingChunk($contentEl, fullText);
+                                $contentEl.innerHTML = `<span style="color:#f44336;">⚠️ ${parsed.error}</span>`;
+                                return;
                             }
                         } catch (e) {
                             // 忽略非JSON行
@@ -554,7 +554,17 @@
                 let prompt = `请根据以下任务数据生成周报（${startDate} ~ ${endDate}）：\n\n${text}`;
                 if (tplId) {
                     const tpl = templates.find(t => t.id == tplId);
-                    if (tpl) prompt += `\n\n请按以下模板格式输出：\n${tpl.template_content}`;
+                    if (tpl) {
+                        // 自动替换模板变量
+                        let tplContent = tpl.template_content;
+                        tplContent = tplContent.replace(/\{\{week_range\}\}/g, data.week_range);
+                        tplContent = tplContent.replace(/\{\{total_tasks\}\}/g, data.total_tasks);
+                        tplContent = tplContent.replace(/\{\{completed_tasks\}\}/g, data.completed_count);
+                        tplContent = tplContent.replace(/\{\{in_progress_tasks\}\}/g, data.in_progress_count || data.in_progress);
+                        tplContent = tplContent.replace(/\{\{pending_tasks\}\}/g, data.pending_count || data.pending);
+                        tplContent = tplContent.replace(/\{\{status_changes\}\}/g, (data.status_changes || []).map(c => `- ${c.todo_title}: ${c.old_status} → ${c.new_status}`).join('\n'));
+                        prompt += `\n\n请按以下模板格式输出：\n${tplContent}`;
+                    }
                 }
                 sendMessage(prompt);
             }

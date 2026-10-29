@@ -1166,9 +1166,11 @@ async function saveField(taskId, field, value) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ [field]: value })
         });
+        showToast('已保存', 'success');
         loadTodos();
     } catch (error) {
         console.error('保存失败:', error);
+        showToast('保存失败', 'error');
     }
 }
 
